@@ -17,9 +17,16 @@ const { generateAgreement, analyzeAgreement, negotiateAgreement, extractKeyTerms
 const { hashDocument, createAuditEntry, signAgreement, generateCertificate, verifyDocumentIntegrity, generateVerificationToken } = require('./crypto-engine');
 const { generatePDF, generateCertificatePDF, formatType } = require('./pdf-engine');
 const { AGREEMENT_TYPES, JURISDICTIONS, CATEGORIES } = require('./templates');
-const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS, ESCROW_CURRENCIES, ESCROW_RULE_PRESETS, createEscrowOnChain, getEscrowOnChain, getEscrowsByUser, getEscrowByAgreementHash, getContractStatus } = require('./blockchain-engine');
+const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS: BC_STORY_CONTRACTS, ESCROW_CURRENCIES, ESCROW_RULE_PRESETS, createEscrowOnChain, getEscrowOnChain, getEscrowsByUser, getEscrowByAgreementHash, getContractStatus } = require('./blockchain-engine');
 const { calculateSocialScore, calculateDatingScore, createPledge, resolvePledge, processCheckin, hashPledge, PLEDGE_CATEGORIES, VERIFICATION_TYPES, SELF_PLEDGE_TEMPLATES, DATE_PLEDGE_TEMPLATES } = require('./kyw-engine');
 const { initTransport, notifyAgreementSent, notifyPartySigned, notifyDisputeRaised, notifyDisputeResolved, notifyEscrowEvent } = require('./notification-engine');
+
+// ── New Engines ──
+const { TIERS, createUser, verifyPassword, generateVerificationEmail, checkUsageLimit, incrementUsage, validateApiKey } = require('./auth-engine');
+const { registerAgreementAsIP, verifyIPRegistration, generateLicenseTerms, generateIPMetadata } = require('./story-engine');
+const { initStripe, createSubscriptionCheckout, createOneTimeCheckout, createTemplateCheckout, createPortalSession, processWebhookEvent, getRevenueBreakdown, STRIPE_PRODUCTS } = require('./stripe-engine');
+const { PLATFORM_TEMPLATES, createTemplate, fillTemplate, addReview, recordPurchase, searchTemplates } = require('./marketplace-engine');
+const { handleInteraction, registerCommands, PER_USE_PRICING, verifyDiscordSignature } = require('./discord-bot');
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -43,7 +50,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ---- Data Store ----
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {}, disputes: {} };
+let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {}, disputes: {}, registeredUsers: {}, templates: {}, purchases: [], apiKeys: {} };
 
 function loadDB() {
   try {
@@ -57,10 +64,21 @@ function loadDB() {
       if (!db.pledges) db.pledges = {};
       if (!db.kywUsers) db.kywUsers = {};
       if (!db.disputes) db.disputes = {};
+      if (!db.registeredUsers) db.registeredUsers = {};
+      if (!db.templates) db.templates = {};
+      if (!db.purchases) db.purchases = [];
+      if (!db.apiKeys) db.apiKeys = {};
     }
   } catch (e) {
     console.error('DB load error:', e.message);
   }
+}
+
+// Seed platform templates
+function seedTemplates() {
+  PLATFORM_TEMPLATES.forEach(t => {
+    if (!db.templates[t.id]) db.templates[t.id] = t;
+  });
 }
 
 function saveDB() {
@@ -72,8 +90,11 @@ function saveDB() {
 }
 
 loadDB();
+seedTemplates();
+saveDB();
 
 // ---- Auth Middleware ----
+// Legacy admin users (tez/kingpin) still work for backward compat
 const USERS = {
   tez: { name: 'Tez', role: 'admin' },
   kingpin: { name: 'Kingpin', role: 'admin' }
@@ -82,6 +103,21 @@ let authTokens = {};
 
 function requireAuth(req, res, next) {
   const token = req.headers['x-auth-token'] || req.query.token;
+  
+  // Check API key auth
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey) {
+    const keyRecord = db.apiKeys[apiKey];
+    if (keyRecord && keyRecord.active) {
+      const user = db.registeredUsers[keyRecord.userId];
+      if (user) {
+        req.user = { email: user.email, name: user.name, role: user.role, tier: user.tier, userId: user.id, viaApiKey: true };
+        return next();
+      }
+    }
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+
   if (!token || !authTokens[token]) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -89,20 +125,106 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Tier-gate middleware
+function requireTier(minTier) {
+  const tierOrder = ['free', 'starter', 'pro', 'enterprise', 'admin'];
+  return (req, res, next) => {
+    const userTier = req.user?.tier || (req.user?.role === 'admin' ? 'admin' : 'free');
+    if (tierOrder.indexOf(userTier) >= tierOrder.indexOf(minTier)) return next();
+    res.status(403).json({ error: `Requires ${minTier} tier or above. Current: ${userTier}`, upgrade: '/api/pricing' });
+  };
+}
+
 // ============================================================
 //   AUTH ENDPOINTS
 // ============================================================
 
-app.post('/api/auth/login', (req, res) => {
-  const { password } = req.body;
+// ---- Register new account ----
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password, name, company } = req.body;
+  try {
+    // Check if email already exists
+    const existing = Object.values(db.registeredUsers).find(u => u.email === (email || '').toLowerCase().trim());
+    if (existing) return res.status(400).json({ error: 'Email already registered' });
+
+    const user = await createUser({ email, password, name, company });
+    db.registeredUsers[user.id] = user;
+
+    // Create API key mapping
+    db.apiKeys[user.apiKey] = { userId: user.id, active: false, createdAt: user.createdAt };
+
+    const token = uuidv4();
+    authTokens[token] = { email: user.email, name: user.name, role: user.role, tier: user.tier, userId: user.id };
+
+    // Send verification email
+    const verifyEmail = generateVerificationEmail(user);
+    const { sendEmail } = require('./notification-engine');
+    sendEmail(user.email, verifyEmail.subject, verifyEmail.html, verifyEmail.text).catch(() => {});
+
+    saveDB();
+    res.json({
+      token,
+      user: { id: user.id, email: user.email, name: user.name, tier: user.tier, verified: user.verified },
+      verificationCode: user.verificationCode, // included so user can verify even without email
+      apiKey: user.apiKey
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ---- Verify email ----
+app.post('/api/auth/verify-email', (req, res) => {
+  const { email, code } = req.body;
+  const user = Object.values(db.registeredUsers).find(u => u.email === (email || '').toLowerCase().trim());
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.verified) return res.json({ ok: true, alreadyVerified: true });
+
+  if (user.verificationCode !== (code || '').toUpperCase()) {
+    return res.status(400).json({ error: 'Invalid verification code' });
+  }
+
+  if (new Date(user.verificationExpires) < new Date()) {
+    return res.status(400).json({ error: 'Verification code expired' });
+  }
+
+  user.verified = true;
+  user.verifiedAt = new Date().toISOString();
+  saveDB();
+  res.json({ ok: true, verified: true });
+});
+
+// ---- Login (supports both legacy password and email/password) ----
+app.post('/api/auth/login', async (req, res) => {
+  const { password, email } = req.body;
+
+  // New-style login: email + password
+  if (email) {
+    const user = Object.values(db.registeredUsers).find(u => u.email === email.toLowerCase().trim());
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+    const valid = await verifyPassword(password, user.passwordHash);
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+    user.lastLoginAt = new Date().toISOString();
+    const token = uuidv4();
+    authTokens[token] = { email: user.email, name: user.name, role: user.role, tier: user.tier, userId: user.id };
+    saveDB();
+    return res.json({
+      token,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, tier: user.tier, verified: user.verified, apiKey: user.apiKey }
+    });
+  }
+
+  // Legacy login: password only (tez/kingpin)
   const pwd = (password || '').toLowerCase().trim();
   const user = USERS[pwd];
   if (user) {
     const token = uuidv4();
-    authTokens[token] = { email: pwd, name: user.name, role: user.role, loginAt: new Date().toISOString() };
-    return res.json({ token, user: { email: pwd, name: user.name, role: user.role } });
+    authTokens[token] = { email: pwd, name: user.name, role: user.role, tier: 'enterprise', loginAt: new Date().toISOString() };
+    return res.json({ token, user: { email: pwd, name: user.name, role: user.role, tier: 'enterprise' } });
   }
-  res.status(401).json({ error: 'Wrong password' });
+  res.status(401).json({ error: 'Wrong credentials' });
 });
 
 app.get('/api/auth/verify', requireAuth, (req, res) => {
@@ -311,6 +433,21 @@ app.post('/api/agreements/:id/sign', (req, res) => {
 
   if (allSigned) {
     agreement.status = 'signed';
+
+    // ── Auto-register as IP Asset on Story Protocol ──
+    registerAgreementAsIP(agreement).then(result => {
+      if (result.success) {
+        agreement.ipAsset = result.ipAsset;
+        agreement.ipAsset.autoRegistered = true;
+        db.audit.push(createAuditEntry(agreement.id, 'IP_REGISTERED', 'system', {
+          chain: result.ipAsset.chain,
+          contentHash: result.ipAsset.contentHash,
+          simulated: result.simulated
+        }));
+        saveDB();
+        console.log(`[story] IP registered for agreement ${agreement.id}: ${result.ipAsset.contentHash}`);
+      }
+    }).catch(e => console.error('[story] Auto-register error:', e.message));
   }
 
   agreement.updatedAt = new Date().toISOString();
@@ -639,7 +776,7 @@ app.get('/api/blockchain/config', requireAuth, (req, res) => {
     storyProtocol: {
       rpcUrl: process.env.STORY_RPC_URL || 'https://odyssey.storyrpc.io',
       chainId: process.env.STORY_CHAIN_ID || '1516',
-      contracts: STORY_CONTRACTS,
+      contracts: BC_STORY_CONTRACTS,
       explorer: 'https://explorer.story.foundation'
     },
     escrow: {
@@ -1538,6 +1675,471 @@ app.get('/kyw', (req, res) => {
 });
 
 // ============================================================
+//   STORY PROTOCOL — IP REGISTRATION
+// ============================================================
+
+// ---- Manual IP registration for any agreement ----
+app.post('/api/agreements/:id/ip/register', requireAuth, async (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+
+  if (agreement.ipAsset && !req.body.force) {
+    return res.json({ alreadyRegistered: true, ipAsset: agreement.ipAsset });
+  }
+
+  try {
+    const result = await registerAgreementAsIP(agreement);
+    if (result.success) {
+      agreement.ipAsset = result.ipAsset;
+      db.audit.push(createAuditEntry(agreement.id, 'IP_REGISTERED', req.user.email, {
+        chain: result.ipAsset.chain,
+        contentHash: result.ipAsset.contentHash,
+        simulated: result.simulated
+      }));
+      saveDB();
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'IP registration error: ' + err.message });
+  }
+});
+
+// ---- Verify IP registration ----
+app.get('/api/agreements/:id/ip/verify', (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  res.json(verifyIPRegistration(agreement));
+});
+
+// ---- Generate license terms for IP ----
+app.post('/api/agreements/:id/ip/license', requireAuth, (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  if (!agreement.ipAsset) return res.status(400).json({ error: 'Agreement not registered as IP' });
+
+  const terms = generateLicenseTerms(agreement, req.body);
+  res.json(terms);
+});
+
+// ---- Get IP metadata ----
+app.get('/api/agreements/:id/ip/metadata', (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  res.json(generateIPMetadata(agreement));
+});
+
+// ---- Batch register all signed agreements as IP ----
+app.post('/api/ip/register-all', requireAuth, async (req, res) => {
+  const signed = Object.values(db.agreements).filter(a => a.status === 'signed' && !a.ipAsset);
+  const results = [];
+
+  for (const agreement of signed) {
+    try {
+      const result = await registerAgreementAsIP(agreement);
+      if (result.success) {
+        agreement.ipAsset = result.ipAsset;
+        db.audit.push(createAuditEntry(agreement.id, 'IP_REGISTERED', req.user.email, {
+          chain: result.ipAsset.chain, batch: true
+        }));
+        results.push({ id: agreement.id, title: agreement.title, success: true });
+      }
+    } catch (e) {
+      results.push({ id: agreement.id, title: agreement.title, success: false, error: e.message });
+    }
+  }
+
+  saveDB();
+  res.json({ total: signed.length, registered: results.filter(r => r.success).length, results });
+});
+
+// ============================================================
+//   STRIPE — PAYMENTS & SUBSCRIPTIONS
+// ============================================================
+
+// ---- Pricing page data ----
+app.get('/api/pricing', (req, res) => {
+  res.json({
+    tiers: TIERS,
+    perUse: PER_USE_PRICING,
+    products: STRIPE_PRODUCTS
+  });
+});
+
+// ---- Create subscription checkout ----
+app.post('/api/stripe/checkout/subscription', requireAuth, async (req, res) => {
+  const { tier } = req.body;
+  if (!['starter', 'pro', 'enterprise'].includes(tier)) {
+    return res.status(400).json({ error: 'Invalid tier' });
+  }
+  const result = await createSubscriptionCheckout(req.user.userId || req.user.email, req.user.email, tier);
+  res.json(result);
+});
+
+// ---- Create one-time purchase checkout ----
+app.post('/api/stripe/checkout/purchase', requireAuth, async (req, res) => {
+  const { product, metadata } = req.body;
+  if (!product) return res.status(400).json({ error: 'Product key required' });
+  const result = await createOneTimeCheckout(req.user.userId || req.user.email, req.user.email, product, metadata);
+  res.json(result);
+});
+
+// ---- Customer portal (manage subscription) ----
+app.post('/api/stripe/portal', requireAuth, async (req, res) => {
+  const user = db.registeredUsers[req.user.userId];
+  if (!user?.stripeCustomerId) return res.status(400).json({ error: 'No Stripe subscription found' });
+  const result = await createPortalSession(user.stripeCustomerId);
+  res.json(result);
+});
+
+// ---- Stripe webhook ----
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const result = processWebhookEvent(req.body, sig);
+
+  if (result.error) {
+    console.error('[stripe webhook]', result.error);
+    return res.status(400).json({ error: result.error });
+  }
+
+  // Process the action
+  switch (result.action) {
+    case 'upgrade_tier': {
+      const user = Object.values(db.registeredUsers).find(u => u.id === result.userId);
+      if (user) {
+        user.tier = result.tier;
+        user.stripeCustomerId = result.stripeCustomerId;
+        user.stripeSubscriptionId = result.stripeSubscriptionId;
+        if (user.apiKey) {
+          user.apiKeyActive = ['pro', 'enterprise'].includes(result.tier);
+          if (db.apiKeys[user.apiKey]) db.apiKeys[user.apiKey].active = user.apiKeyActive;
+        }
+        // Update active auth tokens
+        Object.values(authTokens).forEach(t => { if (t.userId === user.id) t.tier = result.tier; });
+        saveDB();
+      }
+      break;
+    }
+
+    case 'subscription_cancelled': {
+      const user = Object.values(db.registeredUsers).find(u => u.stripeCustomerId === result.stripeCustomerId);
+      if (user) {
+        user.tier = 'free';
+        user.apiKeyActive = false;
+        if (db.apiKeys[user.apiKey]) db.apiKeys[user.apiKey].active = false;
+        Object.values(authTokens).forEach(t => { if (t.userId === user.id) t.tier = 'free'; });
+        saveDB();
+      }
+      break;
+    }
+
+    case 'template_purchased': {
+      const template = db.templates[result.templateId];
+      if (template) {
+        recordPurchase(template, result.buyerEmail);
+        db.purchases.push({ type: 'template', templateId: result.templateId, buyerEmail: result.buyerEmail, at: new Date().toISOString() });
+        saveDB();
+      }
+      break;
+    }
+  }
+
+  res.json({ received: true, action: result.action });
+});
+
+// ---- Revenue analytics (admin) ----
+app.get('/api/revenue', requireAuth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  res.json(getRevenueBreakdown(db));
+});
+
+// ============================================================
+//   TEMPLATE MARKETPLACE
+// ============================================================
+
+// ---- Browse templates ----
+app.get('/api/marketplace/templates', (req, res) => {
+  const allTemplates = Object.values(db.templates).filter(t => t.approved !== false);
+  const results = searchTemplates(allTemplates, {
+    search: req.query.search,
+    category: req.query.category,
+    type: req.query.type,
+    jurisdiction: req.query.jurisdiction,
+    minRating: req.query.minRating ? parseFloat(req.query.minRating) : undefined,
+    maxPrice: req.query.maxPrice !== undefined ? parseInt(req.query.maxPrice) : undefined,
+    freeOnly: req.query.free === 'true',
+    featured: req.query.featured === 'true',
+    sort: req.query.sort || 'popular'
+  });
+
+  // Don't expose full content in listing
+  const listing = results.map(t => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    category: t.category,
+    type: t.type,
+    price: t.price,
+    priceFormatted: t.price === 0 ? 'Free' : `$${(t.price / 100).toFixed(2)}`,
+    authorName: t.authorName,
+    jurisdiction: t.jurisdiction,
+    tags: t.tags,
+    rating: t.rating,
+    ratingCount: t.ratingCount,
+    purchaseCount: t.purchaseCount,
+    featured: t.featured,
+    variables: t.variables
+  }));
+
+  res.json({ templates: listing, total: listing.length });
+});
+
+// ---- Get template details ----
+app.get('/api/marketplace/templates/:id', (req, res) => {
+  const template = db.templates[req.params.id];
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  // Return content preview (first 500 chars) for free, full for purchased/owned/subscriber
+  const token = req.headers['x-auth-token'];
+  const user = token && authTokens[token];
+  const isOwner = user?.userId === template.authorId || user?.role === 'admin';
+  const isSubscriber = user && ['starter', 'pro', 'enterprise'].includes(user.tier);
+  const isFree = template.price === 0;
+
+  res.json({
+    ...template,
+    content: (isOwner || isSubscriber || isFree) ? template.content : template.content.substring(0, 500) + '\n\n[... Subscribe or purchase to view full template ...]',
+    fullAccess: isOwner || isSubscriber || isFree
+  });
+});
+
+// ---- Create new template (sell on marketplace) ----
+app.post('/api/marketplace/templates', requireAuth, (req, res) => {
+  try {
+    const template = createTemplate(req.user.userId || req.user.email, req.user.name, req.body);
+    db.templates[template.id] = template;
+    saveDB();
+    res.json(template);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ---- Purchase template (creates checkout or grants for subscribers) ----
+app.post('/api/marketplace/templates/:id/purchase', requireAuth, async (req, res) => {
+  const template = db.templates[req.params.id];
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  const userTier = req.user.tier || 'free';
+  const isSubscriber = ['starter', 'pro', 'enterprise'].includes(userTier);
+
+  // Subscribers get platform templates free
+  if (template.authorId === 'platform' && isSubscriber) {
+    const purchase = recordPurchase(template, req.user.userId || req.user.email);
+    purchase.method = 'subscription';
+    purchase.price = 0;
+    db.purchases.push({ type: 'template', templateId: template.id, userId: req.user.userId, method: 'subscription', at: new Date().toISOString() });
+    saveDB();
+    return res.json({ purchased: true, method: 'subscription', template });
+  }
+
+  // Free templates
+  if (template.price === 0) {
+    const purchase = recordPurchase(template, req.user.userId || req.user.email);
+    db.purchases.push({ type: 'template', templateId: template.id, userId: req.user.userId, method: 'free', at: new Date().toISOString() });
+    saveDB();
+    return res.json({ purchased: true, method: 'free', template });
+  }
+
+  // Paid template — create Stripe checkout
+  const result = await createTemplateCheckout(req.user.email, template);
+  res.json({ purchased: false, ...result });
+});
+
+// ---- Use template (fill variables and create agreement) ----
+app.post('/api/marketplace/templates/:id/use', requireAuth, (req, res) => {
+  const template = db.templates[req.params.id];
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  const filledContent = fillTemplate(template, req.body.variables || {});
+  const id = uuidv4();
+
+  const agreement = {
+    id,
+    type: template.type,
+    title: req.body.title || template.name,
+    content: filledContent,
+    contentHash: hashDocument(filledContent),
+    details: `Created from template: ${template.name}`,
+    parties: req.body.parties || [],
+    jurisdiction: req.body.jurisdiction || template.jurisdiction,
+    favorParty: 'balanced',
+    status: 'draft',
+    version: 1,
+    versions: [{
+      version: 1,
+      content: filledContent,
+      contentHash: hashDocument(filledContent),
+      createdAt: new Date().toISOString(),
+      createdBy: req.user.email
+    }],
+    signatures: [],
+    fromTemplate: template.id,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdBy: req.user.email,
+    verificationToken: generateVerificationToken(id)
+  };
+
+  db.agreements[id] = agreement;
+  db.audit.push(createAuditEntry(id, 'CREATED_FROM_TEMPLATE', req.user.email, { templateId: template.id }));
+  saveDB();
+
+  res.json(agreement);
+});
+
+// ---- Review template ----
+app.post('/api/marketplace/templates/:id/review', requireAuth, (req, res) => {
+  const template = db.templates[req.params.id];
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  try {
+    addReview(template, req.user.userId || req.user.email, req.body);
+    saveDB();
+    res.json({ ok: true, rating: template.rating, ratingCount: template.ratingCount });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ============================================================
+//   DISCORD BOT INTERACTIONS
+// ============================================================
+
+// ---- Discord interactions endpoint (webhook) ----
+app.post('/api/discord/interactions', express.raw({ type: 'application/json' }), async (req, res) => {
+  const body = typeof req.body === 'string' ? req.body : req.body.toString();
+  let interaction;
+  try {
+    interaction = JSON.parse(body);
+  } catch {
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+
+  // PING (Discord verification)
+  if (interaction.type === 1) {
+    return res.json({ type: 1 });
+  }
+
+  // SLASH COMMAND
+  if (interaction.type === 2) {
+    const response = await handleInteraction(interaction, {
+      db,
+      calculateSocialScore,
+      generateAgreement,
+      createAnchorRecord
+    });
+    return res.json(response);
+  }
+
+  res.json({ type: 4, data: { content: 'Interaction type not supported' } });
+});
+
+// ---- Register Discord commands (admin) ----
+app.post('/api/discord/register-commands', requireAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const ok = await registerCommands();
+  res.json({ ok, commandCount: 7 });
+});
+
+// ============================================================
+//   USER MANAGEMENT & API KEYS
+// ============================================================
+
+// ---- Get current user profile ----
+app.get('/api/user/profile', requireAuth, (req, res) => {
+  const user = db.registeredUsers[req.user.userId];
+  if (!user) {
+    // Legacy user
+    return res.json({
+      email: req.user.email,
+      name: req.user.name,
+      role: req.user.role,
+      tier: req.user.tier || 'enterprise',
+      legacy: true
+    });
+  }
+
+  res.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    company: user.company,
+    tier: user.tier,
+    role: user.role,
+    verified: user.verified,
+    apiKey: user.apiKey,
+    apiKeyActive: user.apiKeyActive,
+    usage: user.usage,
+    limits: TIERS[user.tier]?.limits || TIERS.free.limits,
+    createdAt: user.createdAt,
+    lastLoginAt: user.lastLoginAt
+  });
+});
+
+// ---- Upgrade tier (internal, after Stripe confirms) ----
+app.post('/api/user/upgrade', requireAuth, (req, res) => {
+  const user = db.registeredUsers[req.user.userId];
+  if (!user) return res.status(400).json({ error: 'Register for an account first' });
+
+  const { tier } = req.body;
+  if (!TIERS[tier]) return res.status(400).json({ error: 'Invalid tier' });
+
+  user.tier = tier;
+  user.apiKeyActive = ['pro', 'enterprise'].includes(tier);
+  if (db.apiKeys[user.apiKey]) db.apiKeys[user.apiKey].active = user.apiKeyActive;
+  authTokens[req.headers['x-auth-token']].tier = tier;
+  saveDB();
+
+  res.json({ ok: true, tier, limits: TIERS[tier].limits });
+});
+
+// ---- Regenerate API key ----
+app.post('/api/user/api-key/regenerate', requireAuth, (req, res) => {
+  const user = db.registeredUsers[req.user.userId];
+  if (!user) return res.status(400).json({ error: 'Not a registered user' });
+
+  // Delete old key
+  if (db.apiKeys[user.apiKey]) delete db.apiKeys[user.apiKey];
+
+  // Generate new key
+  const crypto = require('crypto');
+  user.apiKey = `am_${crypto.randomBytes(24).toString('hex')}`;
+  db.apiKeys[user.apiKey] = { userId: user.id, active: user.apiKeyActive, createdAt: new Date().toISOString() };
+  saveDB();
+
+  res.json({ apiKey: user.apiKey, active: user.apiKeyActive });
+});
+
+// ---- List all users (admin) ----
+app.get('/api/admin/users', requireAuth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+
+  const users = Object.values(db.registeredUsers).map(u => ({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    company: u.company,
+    tier: u.tier,
+    verified: u.verified,
+    usage: u.usage,
+    createdAt: u.createdAt,
+    lastLoginAt: u.lastLoginAt
+  }));
+
+  res.json({ users, total: users.length });
+});
+
+// ============================================================
 //   HEALTH
 // ============================================================
 
@@ -1553,7 +2155,12 @@ app.get('/api/health', async (req, res) => {
     apiConfigured: !!process.env.OPENAI_API_KEY,
     model: process.env.AI_MODEL || 'gpt-4o',
     agreements: Object.keys(db.agreements).length,
+    registeredUsers: Object.keys(db.registeredUsers).length,
+    templates: Object.keys(db.templates).length,
     escrowContract: escrowStatus,
+    storyProtocol: { configured: !!process.env.STORY_RPC_URL, rpc: process.env.STORY_RPC_URL || 'https://odyssey.storyrpc.io' },
+    stripe: { configured: !!process.env.STRIPE_SECRET_KEY },
+    discord: { configured: !!process.env.DISCORD_BOT_TOKEN },
     uptime: process.uptime()
   });
 });
@@ -1601,8 +2208,10 @@ app.get('*', (req, res) => {
 //   START
 // ============================================================
 
-// Initialize email transport
+// Initialize services
 initTransport();
+initStripe();
+registerCommands().catch(() => {});
 
 app.listen(PORT, () => {
   console.log(`\n  ${PLATFORM} -- AI Agreement Platform`);
@@ -1611,7 +2220,12 @@ app.listen(PORT, () => {
   console.log(`  API Key:     ${process.env.OPENAI_API_KEY ? 'Configured' : 'Missing (set OPENAI_API_KEY in .env)'}`);
   console.log(`  Model:       ${process.env.AI_MODEL || 'gpt-4o'}`);
   console.log(`  Agreements:  ${Object.keys(db.agreements).length}`);
+  console.log(`  Users:       ${Object.keys(db.registeredUsers).length}`);
+  console.log(`  Templates:   ${Object.keys(db.templates).length}`);
   console.log(`  Disputes:    ${Object.keys(db.disputes || {}).length}`);
   console.log(`  Notify:      ${process.env.NOTIFY_ENABLED === 'true' ? 'ENABLED' : 'disabled (set NOTIFY_ENABLED=true)'}`);
+  console.log(`  Story Proto: ${process.env.STORY_RPC_URL ? 'Configured' : 'Default (Odyssey)'}`);
+  console.log(`  Stripe:      ${process.env.STRIPE_SECRET_KEY ? 'ENABLED' : 'disabled (set STRIPE_SECRET_KEY)'}`);
+  console.log(`  Discord:     ${process.env.DISCORD_BOT_TOKEN ? 'ENABLED' : 'disabled (set DISCORD_BOT_TOKEN)'}`);
   console.log('');
 });
