@@ -24,6 +24,7 @@
   const loginScreen = document.getElementById('login-screen');
   const appScreen = document.getElementById('app-screen');
   const loginForm = document.getElementById('login-form');
+  const registerForm = document.getElementById('register-form');
   const loginError = document.getElementById('login-error');
   const pageContent = document.getElementById('page-content');
   const genOverlay = document.getElementById('generating-overlay');
@@ -83,55 +84,66 @@
       authMode = tab.dataset.tab;
       document.querySelectorAll('.auth-tab').forEach(function(t){ t.classList.remove('active'); });
       tab.classList.add('active');
-      document.getElementById('login-fields').style.display = authMode === 'login' ? 'block' : 'none';
-      document.getElementById('register-fields').style.display = authMode === 'register' ? 'block' : 'none';
+      loginForm.style.display = authMode === 'login' ? 'block' : 'none';
+      registerForm.style.display = authMode === 'register' ? 'block' : 'none';
       loginError.style.display = 'none';
     });
   });
 
-  // Login / Register
+  // Login
   loginForm.addEventListener('submit', async function(e) {
     e.preventDefault();
     loginError.style.display = 'none';
     try {
-      if (authMode === 'register') {
-        var name = document.getElementById('reg-name').value.trim();
-        var email = document.getElementById('reg-email').value.trim();
-        var company = document.getElementById('reg-company').value.trim();
-        var password = document.getElementById('reg-password').value;
-        var password2 = document.getElementById('reg-password2').value;
-        if (password !== password2) throw new Error('Passwords do not match');
-        if (password.length < 8) throw new Error('Password must be at least 8 characters');
-        var data = await api('POST', '/api/auth/register', { email: email, password: password, name: name, company: company });
-        authToken = data.token;
-        userEmail = data.user.email;
-        userName = data.user.name || email;
-        userTier = data.user.tier || 'free';
-        userId = data.user.id || '';
-        localStorage.setItem('authToken', authToken);
-        localStorage.setItem('userEmail', userEmail);
-        localStorage.setItem('userName', userName);
-        localStorage.setItem('userTier', userTier);
-        localStorage.setItem('userId', userId);
-        toast('Account created! Welcome to AgreeMint', 'success');
-        showApp();
-      } else {
-        var email2 = document.getElementById('login-email').value.trim();
-        var password3 = document.getElementById('login-password').value;
-        var body = email2 ? { email: email2, password: password3 } : { password: password3 };
-        var data2 = await api('POST', '/api/auth/login', body);
-        authToken = data2.token;
-        userEmail = data2.user.email;
-        userName = data2.user.name || data2.user.email;
-        userTier = data2.user.tier || 'enterprise';
-        userId = data2.user.id || '';
-        localStorage.setItem('authToken', authToken);
-        localStorage.setItem('userEmail', userEmail);
-        localStorage.setItem('userName', userName);
-        localStorage.setItem('userTier', userTier);
-        localStorage.setItem('userId', userId);
-        showApp();
-      }
+      var email2 = document.getElementById('login-email').value.trim();
+      var password3 = document.getElementById('login-password').value;
+      if (!password3) throw new Error('Password is required');
+      var body = email2 ? { email: email2, password: password3 } : { password: password3 };
+      var data2 = await api('POST', '/api/auth/login', body);
+      authToken = data2.token;
+      userEmail = data2.user.email;
+      userName = data2.user.name || data2.user.email;
+      userTier = data2.user.tier || 'enterprise';
+      userId = data2.user.id || '';
+      localStorage.setItem('authToken', authToken);
+      localStorage.setItem('userEmail', userEmail);
+      localStorage.setItem('userName', userName);
+      localStorage.setItem('userTier', userTier);
+      localStorage.setItem('userId', userId);
+      showApp();
+    } catch (err) {
+      loginError.textContent = err.message;
+      loginError.style.display = 'block';
+    }
+  });
+
+  // Register
+  registerForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    loginError.style.display = 'none';
+    try {
+      var name = document.getElementById('reg-name').value.trim();
+      var email = document.getElementById('reg-email').value.trim();
+      var company = document.getElementById('reg-company').value.trim();
+      var password = document.getElementById('reg-password').value;
+      var password2 = document.getElementById('reg-password2').value;
+      if (!email) throw new Error('Email is required');
+      if (!password) throw new Error('Password is required');
+      if (password !== password2) throw new Error('Passwords do not match');
+      if (password.length < 8) throw new Error('Password must be at least 8 characters');
+      var data = await api('POST', '/api/auth/register', { email: email, password: password, name: name, company: company });
+      authToken = data.token;
+      userEmail = data.user.email;
+      userName = data.user.name || email;
+      userTier = data.user.tier || 'free';
+      userId = data.user.id || '';
+      localStorage.setItem('authToken', authToken);
+      localStorage.setItem('userEmail', userEmail);
+      localStorage.setItem('userName', userName);
+      localStorage.setItem('userTier', userTier);
+      localStorage.setItem('userId', userId);
+      toast('Account created! Welcome to AgreeMint', 'success');
+      showApp();
     } catch (err) {
       loginError.textContent = err.message;
       loginError.style.display = 'block';
