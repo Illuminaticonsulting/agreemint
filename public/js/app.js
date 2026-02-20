@@ -60,12 +60,11 @@
   // ─── Auth ──────────────────────────────────────────────
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     try {
-      const data = await api('POST', '/api/auth/login', { email, password });
+      const data = await api('POST', '/api/auth/login', { password });
       authToken = data.token;
-      userEmail = data.user.email;
+      userEmail = data.user.name || data.user.email;
       localStorage.setItem('agreemint_token', authToken);
       localStorage.setItem('agreemint_email', userEmail);
       showApp();

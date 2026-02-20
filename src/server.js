@@ -65,8 +65,10 @@ function saveDB() {
 loadDB();
 
 // ---- Auth Middleware ----
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@agreemint.com';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
+const USERS = {
+  tez: { name: 'Tez', role: 'admin' },
+  kingpin: { name: 'Kingpin', role: 'admin' }
+};
 let authTokens = {};
 
 function requireAuth(req, res, next) {
@@ -83,13 +85,15 @@ function requireAuth(req, res, next) {
 // ============================================================
 
 app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+  const { password } = req.body;
+  const pwd = (password || '').toLowerCase().trim();
+  const user = USERS[pwd];
+  if (user) {
     const token = uuidv4();
-    authTokens[token] = { email, role: 'admin', loginAt: new Date().toISOString() };
-    return res.json({ token, user: { email, role: 'admin' } });
+    authTokens[token] = { email: pwd, name: user.name, role: user.role, loginAt: new Date().toISOString() };
+    return res.json({ token, user: { email: pwd, name: user.name, role: user.role } });
   }
-  res.status(401).json({ error: 'Invalid credentials' });
+  res.status(401).json({ error: 'Wrong password' });
 });
 
 app.get('/api/auth/verify', requireAuth, (req, res) => {
