@@ -176,8 +176,17 @@
     document.getElementById('user-email').textContent = userEmail;
     document.getElementById('user-avatar').textContent = (userName || userEmail || 'A').charAt(0).toUpperCase();
     document.getElementById('logout-btn').onclick = logout;
-    document.getElementById('topbar-toggle').onclick = function(){ document.getElementById('sidebar').classList.add('open'); };
-    document.getElementById('sidebar-close').onclick = function(){ document.getElementById('sidebar').classList.remove('open'); };
+    document.getElementById('topbar-toggle').onclick = function(){
+      document.getElementById('sidebar').classList.add('open');
+      document.getElementById('sidebar-backdrop').classList.add('active');
+    };
+    var closeSidebar = function(){
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebar-backdrop').classList.remove('active');
+    };
+    document.getElementById('sidebar-close').onclick = closeSidebar;
+    document.getElementById('sidebar-backdrop').onclick = closeSidebar;
+    document.getElementById('fab-new').onclick = function(){ navigate('create'); };
     document.querySelectorAll('.nav-item[data-page]').forEach(function(btn) {
       btn.onclick = function(){ navigate(btn.dataset.page); };
     });
@@ -200,6 +209,7 @@
     var active = document.querySelector('.nav-item[data-page="' + page + '"]');
     if (active) active.classList.add('active');
     document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('active');
     switch(page) {
       case 'dashboard': renderDashboard(); break;
       case 'agreements': renderAgreements(); break;
@@ -241,7 +251,7 @@
         '<div class="stat-card yellow"><span class="stat-icon">&#9203;</span><div class="stat-label">Pending</div><div class="stat-value">' + (stats.pending || 0) + '</div></div>' +
         '<div class="stat-card green"><span class="stat-icon">&#10004;</span><div class="stat-label">Signed</div><div class="stat-value">' + (stats.signed || 0) + '</div></div>' +
         '</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">' +
+        '<div class="dashboard-grid">' +
         '<div class="create-section"><h2>&#128196; Recent Agreements</h2><div class="agreements-list">' +
         (recent.length === 0 ? '<div class="empty-state"><div class="empty-icon">&#128196;</div><h3>No agreements yet</h3><p>Create your first agreement to get started</p></div>' : recent.map(function(a){ return agreementCard(a); }).join('')) +
         '</div></div>' +
@@ -407,7 +417,7 @@
       '<div class="form-group"><label>Agreement Text</label><textarea class="form-textarea" id="analyze-text" rows="12" placeholder="Paste your agreement text here..."></textarea></div>' +
       '<div class="form-row"><div class="form-group"><label>Your Role</label><select class="form-select" id="analyze-role"><option value="neutral">Neutral</option><option value="party_a">Party A</option><option value="party_b">Party B</option></select></div>' +
       '<div class="form-group"><label>Focus Area</label><select class="form-select" id="analyze-focus"><option value="general">General</option><option value="risks">Risks</option><option value="obligations">Obligations</option><option value="financials">Financials</option></select></div></div>' +
-      '<button class="btn btn-primary" onclick="window._analyzeText()" style="width:auto;padding:12px 32px;">&#128270; Analyze</button></div>' +
+      '<button class="btn btn-primary" onclick="window._analyzeText()" style="padding:12px 32px;">&#128270; Analyze</button></div>' +
       '<div id="analyze-result" style="margin-top:24px;"></div>'
     );
   }

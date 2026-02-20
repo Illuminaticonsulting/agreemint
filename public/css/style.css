@@ -138,8 +138,9 @@ a:hover { color: var(--accent-hover); }
 .btn-primary {
   background: var(--accent);
   color: white;
-  width: 100%;
 }
+
+.login-box .btn-primary { width: 100%; }
 
 .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
@@ -939,6 +940,49 @@ a:hover { color: var(--accent-hover); }
 .sign-form .consent-check input { margin-top: 3px; }
 .sign-form .consent-check label { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
 
+/* ---- Floating Action Button (mobile) ---- */
+.fab {
+  display: none;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+  z-index: 200;
+  transition: all 0.2s ease;
+  align-items: center;
+  justify-content: center;
+}
+
+.fab:hover { background: var(--accent-hover); transform: scale(1.08); }
+.fab:active { transform: scale(0.95); }
+
+/* ---- Sidebar Backdrop (mobile) ---- */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+}
+
+.sidebar-backdrop.active { display: block; }
+
+/* ---- Dashboard grid ---- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 1024px) {
   .agreement-view { grid-template-columns: 1fr; }
@@ -951,16 +995,111 @@ a:hover { color: var(--accent-hover); }
   .sidebar-close { display: block; }
   .topbar { display: flex; }
   .main { margin-left: 0; }
-  .page-content { padding: 20px; }
+  .page-content { padding: 16px; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .templates-grid { grid-template-columns: 1fr; }
   .chat-message { max-width: 95%; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .fab { display: flex; }
+
+  /* Better page header on tablet */
+  .page-header { gap: 12px; }
+  .page-header h1 { font-size: 20px; }
+
+  /* Agreement cards: tighter on tablet */
+  .agreement-card { padding: 14px; gap: 12px; }
+  .agreement-icon { width: 40px; height: 40px; font-size: 20px; }
+
+  /* Search bar: stack on mobile */
+  .search-bar { flex-direction: column; }
+  .search-bar .form-select { width: 100% !important; }
+
+  /* Template cards */
+  .template-card { padding: 18px; }
+
+  /* Create form */
+  .create-section { padding: 20px; }
+
+  /* Category filter: scrollable */
+  .category-filter { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+  .category-btn { white-space: nowrap; flex-shrink: 0; }
+
+  /* Toast position on mobile */
+  .toast-container { left: 16px; right: 16px; bottom: 90px; }
+  .toast { max-width: 100%; }
+
+  /* Party rows */
+  .party-row { flex-wrap: wrap; }
+
+  /* Tab bar: scrollable */
+  .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab-btn { white-space: nowrap; flex-shrink: 0; padding: 10px 14px; font-size: 13px; }
+
+  /* Stat cards: smaller */
+  .stat-card { padding: 14px; }
+  .stat-card .stat-value { font-size: 24px; }
+  .stat-card .stat-icon { font-size: 20px; }
 }
 
 @media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr; }
-  .login-box { padding: 32px 24px; }
-  .page-header { flex-direction: column; align-items: flex-start; }
+  .login-box { padding: 28px 20px; }
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .page-content { padding: 12px; }
+  .page-header h1 { font-size: 18px; }
+  .page-header p { font-size: 12px; }
+
+  /* Smaller form elements */
+  .form-input, .form-textarea, .form-select { padding: 10px 12px; font-size: 14px; }
+  .form-group label { font-size: 12px; }
+  .form-group { margin-bottom: 14px; }
+
+  /* Buttons: full width on small */
+  .page-actions { width: 100%; }
+  .page-actions .btn { flex: 1; padding: 10px 14px; font-size: 13px; }
+
+  /* Agreement cards: compact */
+  .agreement-card { padding: 12px; gap: 10px; flex-wrap: wrap; }
+  .agreement-icon { width: 36px; height: 36px; font-size: 18px; }
+  .agreement-info h3 { font-size: 14px; }
+  .agreement-meta { gap: 8px; }
+  .agreement-meta span { font-size: 11px; }
+  .status-badge { font-size: 10px; padding: 3px 8px; }
+
+  /* Create section */
+  .create-section { padding: 16px; }
+  .create-section h2 { font-size: 16px; }
+
+  /* Template cards */
+  .template-card { padding: 14px; }
+  .template-card h3 { font-size: 14px; }
+  .template-card p { font-size: 12px; }
+  .template-card .template-icon { font-size: 24px; margin-bottom: 8px; }
+
+  /* Topbar */
+  .topbar { padding: 10px 14px; }
+  .topbar-title { font-size: 15px; }
+
+  /* Sidebar */
+  .sidebar { width: 280px; }
+  .nav-item { padding: 12px 12px; font-size: 14px; }
+
+  /* FAB: slightly smaller */
+  .fab { width: 50px; height: 50px; font-size: 24px; bottom: 20px; right: 16px; }
+
+  /* Stats on small phones: 2 columns */
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .stat-card { padding: 12px; }
+  .stat-card .stat-value { font-size: 20px; }
+  .stat-card .stat-label { font-size: 10px; }
+  .stat-card .stat-icon { font-size: 16px; }
+
+  /* Chat */
+  .chat-container { height: calc(100vh - 200px); }
+
+  /* Empty state */
+  .empty-state { padding: 32px 16px; }
+  .empty-icon { font-size: 36px; }
 }
 
 /* ---- Auth Tabs ---- */
