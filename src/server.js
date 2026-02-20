@@ -49,6 +49,14 @@ function loadDB() {
   try {
     if (fs.existsSync(DB_FILE)) {
       db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+      // Ensure all expected collections exist (migration safety)
+      if (!db.agreements) db.agreements = {};
+      if (!db.sessions) db.sessions = {};
+      if (!db.users) db.users = {};
+      if (!db.audit) db.audit = [];
+      if (!db.pledges) db.pledges = {};
+      if (!db.kywUsers) db.kywUsers = {};
+      if (!db.disputes) db.disputes = {};
     }
   } catch (e) {
     console.error('DB load error:', e.message);
