@@ -442,6 +442,9 @@
             <button class="btn btn-secondary btn-sm" onclick="openEscrowModal('${a.id}')" style="border-color:#f59e0b;color:#f59e0b;">&#128274; Create Escrow</button>
             ${a.status === 'draft' ? `<button class="btn btn-primary btn-sm" onclick="sendForSign('${a.id}')">&#9998; Send for Signature</button>` : ''}
             ${a.status === 'draft' ? `<button class="btn btn-danger btn-sm" onclick="deleteAgreement('${a.id}')">Delete</button>` : ''}
+            ${a.status === 'signed' ? `<button class="btn btn-sm" onclick="openDisputeModal('${a.id}')" style="background:#ef4444;color:#fff;">&#9888; Raise Dispute</button>` : ''}
+            ${a.status === 'disputed' ? `<button class="btn btn-sm" onclick="viewDispute('${a.id}')" style="background:#ef4444;color:#fff;">&#9888; View Dispute</button>` : ''}
+            ${a.status === 'signed' ? `<button class="btn btn-sm" onclick="cancelAgreement('${a.id}')" style="background:#666;color:#fff;">Cancel</button>` : ''}
           </div>
         </div>
 
@@ -455,6 +458,9 @@
               <div style="text-align:center;padding:8px 0;">
                 <span class="status-badge status-${a.status}" style="font-size:14px;padding:6px 16px;">${a.status.toUpperCase()}</span>
               </div>
+              ${a.status === 'disputed' ? '<div style="margin-top:8px;padding:8px 12px;background:#1a0000;border:1px solid #ef4444;border-radius:8px;font-size:12px;color:#ef4444;">&#9888; This agreement has an active dispute.</div>' : ''}
+              ${a.status === 'cancelled' ? '<div style="margin-top:8px;padding:8px 12px;background:#1a1a1a;border:1px solid #666;border-radius:8px;font-size:12px;color:#999;">Cancelled' + (a.cancellationReason ? ': ' + esc(a.cancellationReason) : '') + '</div>' : ''}
+              ${a.escrow ? '<div style="margin-top:8px;font-size:12px;color:var(--text-muted);">&#128274; Escrow: ' + (a.escrow.amount || '?') + ' ' + (a.escrow.currency || '') + ' (' + (a.escrow.status || (a.escrow.bothAccepted ? 'accepted' : 'pending')) + ')</div>' : ''}
             </div>
             <div class="side-card">
               <h3>Details</h3>
@@ -1181,6 +1187,158 @@
       ).join('');
     } catch(e) {}
   }
+
+  // ─── Dispute Functions ──────────────────────────────────
+
+  window.openDisputeModal = function(id) {
+    const container = document.getElementById('analysis-container');
+    if (!container) return;
+    container.innerHTML = `
+      <div class="analysis-result" style="border-color:#ef4444;">
+        <h2 style="color:#ef4444;">&#9888; Raise a Dispute</h2>
+        <p style="color:var(--text-muted);margin:8px 0 16px;">Disputes freeze the agreement and notify all parties. An arbiter may be called to resolve.</p>
+        <div class="form-group">
+          <label>Dispute Category</label>
+          <select class="form-select" id="dispute-category">
+            <option value="breach">Breach of Terms</option>
+            <option value="non_delivery">Non-Delivery</option>
+            <option value="quality">Quality Issues</option>
+            <option value="payment">Payment Dispute</option>
+            <option value="fraud">Fraud / Misrepresentation</option>
+            <option value="general">General Dispute</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Reason for Dispute</label>
+          <textarea class="form-textarea" id="dispute-reason" rows="4" placeholder="Describe what went wrong and why you're raising this dispute..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Proposed Resolution</label>
+          <textarea class="form-textarea" id="dispute-proposal" rows="2" placeholder="How would you like this resolved?"></textarea>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:16px;">
+          <button class="btn" style="background:#ef4444;color:#fff;" onclick="submitDispute('${id}')">&#9888; Submit Dispute</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('analysis-container').innerHTML=''">Cancel</button>
+        </div>
+      </div>
+    `;
+    container.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  window.submitDispute = async function(id) {
+    const reason = document.getElementById('dispute-reason').value.trim();
+    if (!reason) { toast('Please describe the dispute reason', 'error'); return; }
+
+    genText.textContent = 'Filing dispute...';
+    genOverlay.style.display = 'flex';
+    try {
+      const data = await api('POST', '/api/agreements/' + id + '/dispute', {
+        reason,
+        category: document.getElementById('dispute-category').value,
+        proposedResolution: document.getElementById('dispute-proposal').value.trim()
+      });
+      genOverlay.style.display = 'none';
+      toast('Dispute filed. All parties have been notified.', 'error');
+      navigate('view', id);
+    } catch(err) {
+      genOverlay.style.display = 'none';
+      toast('Error: ' + err.message, 'error');
+    }
+  };
+
+  window.viewDispute = async function(id) {
+    const container = document.getElementById('analysis-container');
+    if (!container) return;
+    try {
+      const data = await api('GET', '/api/agreements/' + id + '/dispute');
+      const d = data.active;
+      if (!d) { toast('No active dispute', 'error'); return; }
+
+      let responsesHtml = d.responses.length === 0
+        ? '<p style="color:var(--text-muted);font-size:13px;">No responses yet.</p>'
+        : d.responses.map(r => `
+            <div style="padding:12px;background:var(--bg-secondary);border-radius:8px;margin-bottom:8px;">
+              <div style="font-size:12px;color:var(--text-muted);">${esc(r.fromName || r.from)} &middot; ${timeAgo(r.createdAt)}</div>
+              <div style="margin-top:6px;font-size:14px;color:var(--text-secondary);">${esc(r.message)}</div>
+              ${r.counterProposal ? '<div style="margin-top:6px;font-size:13px;color:#f59e0b;"><strong>Counter-proposal:</strong> ' + esc(r.counterProposal) + '</div>' : ''}
+            </div>
+          `).join('');
+
+      container.innerHTML = `
+        <div class="analysis-result" style="border-color:#ef4444;">
+          <h2 style="color:#ef4444;">&#9888; Active Dispute</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;">
+            <div><strong style="color:var(--text-muted);font-size:12px;">Status:</strong><br><span style="color:#ef4444;font-weight:700;">${d.status.toUpperCase()}</span></div>
+            <div><strong style="color:var(--text-muted);font-size:12px;">Category:</strong><br>${d.category.replace(/_/g, ' ')}</div>
+            <div><strong style="color:var(--text-muted);font-size:12px;">Raised by:</strong><br>${esc(d.raisedByName || d.raisedBy)}</div>
+            <div><strong style="color:var(--text-muted);font-size:12px;">Deadline:</strong><br>${new Date(d.deadline).toLocaleDateString()} (${d.disputeWindowDays} days)</div>
+          </div>
+          <div style="padding:16px;background:#1a0000;border:1px solid #ef4444;border-radius:8px;margin:16px 0;">
+            <strong style="color:#ef4444;">Reason:</strong>
+            <p style="color:var(--text-secondary);margin:8px 0 0;">${esc(d.reason)}</p>
+            ${d.proposedResolution ? '<p style="color:#f59e0b;margin:8px 0 0;"><strong>Proposed resolution:</strong> ' + esc(d.proposedResolution) + '</p>' : ''}
+          </div>
+          <h3 style="margin:20px 0 12px;">Responses</h3>
+          ${responsesHtml}
+          <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+            <h3>Respond to Dispute</h3>
+            <div class="form-group" style="margin-top:8px;">
+              <textarea class="form-textarea" id="dispute-response-msg" rows="3" placeholder="Your response..."></textarea>
+            </div>
+            <div class="form-group">
+              <input class="form-input" id="dispute-counter-proposal" placeholder="Counter-proposal (optional)">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="respondToDispute('${id}')">Send Response</button>
+          </div>
+          <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+            <h3>Resolve Dispute</h3>
+            <p style="font-size:13px;color:var(--text-muted);">Both parties can agree on a resolution, or the designated arbiter can make a ruling.</p>
+            <div class="form-group" style="margin-top:8px;">
+              <textarea class="form-textarea" id="dispute-resolution" rows="2" placeholder="Resolution description..."></textarea>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm" style="background:#22c55e;color:#fff;" onclick="resolveDispute('${id}')">&#10004; Resolve Dispute</button>
+            </div>
+          </div>
+        </div>
+      `;
+      container.scrollIntoView({ behavior: 'smooth' });
+    } catch(err) { toast('Error: ' + err.message, 'error'); }
+  };
+
+  window.respondToDispute = async function(id) {
+    const msg = document.getElementById('dispute-response-msg').value.trim();
+    if (!msg) { toast('Enter a response', 'error'); return; }
+    try {
+      await api('POST', '/api/agreements/' + id + '/dispute/respond', {
+        message: msg,
+        counterProposal: document.getElementById('dispute-counter-proposal').value.trim()
+      });
+      toast('Response sent', 'success');
+      viewDispute(id);
+    } catch(err) { toast('Error: ' + err.message, 'error'); }
+  };
+
+  window.resolveDispute = async function(id) {
+    const resolution = document.getElementById('dispute-resolution').value.trim();
+    if (!resolution) { toast('Describe the resolution', 'error'); return; }
+    if (!confirm('Resolve this dispute? This action is final.')) return;
+    try {
+      await api('POST', '/api/agreements/' + id + '/dispute/resolve', { resolution });
+      toast('Dispute resolved!', 'success');
+      navigate('view', id);
+    } catch(err) { toast('Error: ' + err.message, 'error'); }
+  };
+
+  window.cancelAgreement = async function(id) {
+    const reason = prompt('Reason for cancellation (optional):');
+    if (reason === null) return;
+    try {
+      await api('POST', '/api/agreements/' + id + '/cancel', { reason });
+      toast('Agreement cancelled', 'success');
+      navigate('view', id);
+    } catch(err) { toast('Error: ' + err.message, 'error'); }
+  };
 
   // ─── Init ──────────────────────────────────────────────
   if (authToken) {

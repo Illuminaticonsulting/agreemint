@@ -19,6 +19,7 @@ const { generatePDF, generateCertificatePDF, formatType } = require('./pdf-engin
 const { AGREEMENT_TYPES, JURISDICTIONS, CATEGORIES } = require('./templates');
 const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS, ESCROW_CURRENCIES, ESCROW_RULE_PRESETS } = require('./blockchain-engine');
 const { calculateSocialScore, calculateDatingScore, createPledge, resolvePledge, processCheckin, hashPledge, PLEDGE_CATEGORIES, VERIFICATION_TYPES, SELF_PLEDGE_TEMPLATES, DATE_PLEDGE_TEMPLATES } = require('./kyw-engine');
+const { initTransport, notifyAgreementSent, notifyPartySigned, notifyDisputeRaised, notifyDisputeResolved, notifyEscrowEvent } = require('./notification-engine');
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -42,7 +43,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ---- Data Store ----
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {} };
+let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {}, disputes: {} };
 
 function loadDB() {
   try {
@@ -255,7 +256,7 @@ app.delete('/api/agreements/:id', requireAuth, (req, res) => {
 });
 
 // ---- Send for Signature ----
-app.post('/api/agreements/:id/send', requireAuth, (req, res) => {
+app.post('/api/agreements/:id/send', requireAuth, async (req, res) => {
   const agreement = db.agreements[req.params.id];
   if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
 
@@ -263,7 +264,12 @@ app.post('/api/agreements/:id/send', requireAuth, (req, res) => {
   agreement.updatedAt = new Date().toISOString();
   db.audit.push(createAuditEntry(agreement.id, 'SENT_FOR_SIGNATURE', req.user.email));
   saveDB();
-  res.json({ ok: true, status: 'pending', signUrl: `/sign/${agreement.id}?token=${agreement.verificationToken}` });
+
+  // Send email notifications to all parties
+  const signUrl = `/sign/${agreement.id}?token=${agreement.verificationToken}`;
+  const emailResults = await notifyAgreementSent(agreement);
+
+  res.json({ ok: true, status: 'pending', signUrl, notifications: emailResults });
 });
 
 // ---- Sign Agreement ----
@@ -302,6 +308,9 @@ app.post('/api/agreements/:id/sign', (req, res) => {
   agreement.updatedAt = new Date().toISOString();
   db.audit.push(createAuditEntry(agreement.id, 'SIGNED', email, { ip }));
   saveDB();
+
+  // Notify other parties about the signature
+  notifyPartySigned(agreement, name, email).catch(e => console.error('Notify error:', e));
 
   res.json({ ok: true, signature, allSigned, status: agreement.status });
 });
@@ -485,6 +494,10 @@ app.get('/api/stats', requireAuth, (req, res) => {
     pending: agreements.filter(a => a.status === 'pending').length,
     signed: agreements.filter(a => a.status === 'signed').length,
     expired: agreements.filter(a => a.status === 'expired').length,
+    disputed: agreements.filter(a => a.status === 'disputed').length,
+    cancelled: agreements.filter(a => a.status === 'cancelled').length,
+    resolved: agreements.filter(a => a.status === 'resolved').length,
+    activeDisputes: Object.values(db.disputes || {}).filter(d => d.status === 'open').length,
     recentActivity: db.audit.slice(-20).reverse(),
     last30Days: agreements.filter(a => new Date(a.createdAt) > thirtyDaysAgo).length,
     byType: Object.entries(
@@ -669,6 +682,9 @@ app.post('/api/agreements/:id/escrow/accept', (req, res) => {
   db.audit.push(createAuditEntry(agreement.id, 'ESCROW_ACCEPTED', party, { wallet }));
   saveDB();
 
+  // Notify on acceptance
+  notifyEscrowEvent(agreement, 'accepted', `${party} has accepted the escrow terms.`).catch(e => console.error('Notify error:', e));
+
   res.json({ ok: true, bothAccepted, acceptances: agreement.escrow.acceptances });
 });
 
@@ -678,6 +694,216 @@ app.get('/api/escrow/config', (req, res) => {
     currencies: ESCROW_CURRENCIES,
     rulePresets: ESCROW_RULE_PRESETS
   });
+});
+
+// ============================================================
+//   DISPUTE RESOLUTION
+// ============================================================
+
+/**
+ * Agreement status lifecycle:
+ * draft → pending → signed → (disputed → resolved | cancelled)
+ * Escrow lifecycle:
+ * prepared → accepted → funded → (released | disputed → arbiter_ruled → released/refunded)
+ */
+
+// ---- Raise a Dispute ----
+app.post('/api/agreements/:id/dispute', requireAuth, async (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  if (agreement.status !== 'signed' && agreement.status !== 'active') {
+    return res.status(400).json({ error: 'Can only dispute signed/active agreements' });
+  }
+
+  const { reason, category, evidence, proposedResolution } = req.body;
+  if (!reason) return res.status(400).json({ error: 'Dispute reason required' });
+
+  const disputeId = uuidv4();
+  const now = new Date().toISOString();
+  const disputeWindowDays = agreement.escrow?.rules?.disputeWindowDays || 14;
+  const deadline = new Date(Date.now() + disputeWindowDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const dispute = {
+    id: disputeId,
+    agreementId: agreement.id,
+    raisedBy: req.user.email,
+    raisedByName: req.user.name,
+    reason,
+    category: category || 'general',
+    evidence: evidence || [],
+    proposedResolution: proposedResolution || null,
+    status: 'open',
+    responses: [],
+    deadline,
+    disputeWindowDays,
+    arbiter: agreement.escrow?.arbiter || null,
+    createdAt: now,
+    updatedAt: now,
+    resolvedAt: null,
+    resolution: null
+  };
+
+  db.disputes[disputeId] = dispute;
+  agreement.status = 'disputed';
+  agreement.activeDisputeId = disputeId;
+  if (agreement.escrow) agreement.escrow.status = 'disputed';
+  agreement.updatedAt = now;
+
+  db.audit.push(createAuditEntry(agreement.id, 'DISPUTE_RAISED', req.user.email, { disputeId, reason, deadline }));
+  saveDB();
+
+  // Notify all parties
+  notifyDisputeRaised(agreement, req.user.name || req.user.email, reason).catch(e => console.error('Notify error:', e));
+
+  res.json({ dispute, agreement: { id: agreement.id, status: agreement.status } });
+});
+
+// ---- Respond to a Dispute ----
+app.post('/api/agreements/:id/dispute/respond', requireAuth, (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  if (agreement.status !== 'disputed') return res.status(400).json({ error: 'No active dispute' });
+
+  const dispute = db.disputes[agreement.activeDisputeId];
+  if (!dispute) return res.status(404).json({ error: 'Dispute not found' });
+
+  const { message, evidence, counterProposal } = req.body;
+  if (!message) return res.status(400).json({ error: 'Response message required' });
+
+  dispute.responses.push({
+    from: req.user.email,
+    fromName: req.user.name,
+    message,
+    evidence: evidence || [],
+    counterProposal: counterProposal || null,
+    createdAt: new Date().toISOString()
+  });
+  dispute.updatedAt = new Date().toISOString();
+
+  db.audit.push(createAuditEntry(agreement.id, 'DISPUTE_RESPONSE', req.user.email, { disputeId: dispute.id }));
+  saveDB();
+
+  res.json({ dispute });
+});
+
+// ---- Resolve Dispute (by mutual agreement or arbiter) ----
+app.post('/api/agreements/:id/dispute/resolve', requireAuth, (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  if (agreement.status !== 'disputed') return res.status(400).json({ error: 'No active dispute' });
+
+  const dispute = db.disputes[agreement.activeDisputeId];
+  if (!dispute) return res.status(404).json({ error: 'Dispute not found' });
+
+  const { resolution, releaseTo, splitPercentage, resolverRole } = req.body;
+  if (!resolution) return res.status(400).json({ error: 'Resolution description required' });
+
+  const now = new Date().toISOString();
+  dispute.status = 'resolved';
+  dispute.resolution = resolution;
+  dispute.resolvedBy = req.user.email;
+  dispute.resolvedByName = req.user.name;
+  dispute.resolverRole = resolverRole || 'party';
+  dispute.resolvedAt = now;
+  dispute.releaseTo = releaseTo || null;
+  dispute.splitPercentage = splitPercentage || null;
+  dispute.updatedAt = now;
+
+  // Update agreement status
+  agreement.status = 'resolved';
+  agreement.activeDisputeId = null;
+  if (agreement.escrow) {
+    if (releaseTo) {
+      agreement.escrow.status = 'resolved';
+      agreement.escrow.releaseTo = releaseTo;
+    }
+    if (splitPercentage) {
+      agreement.escrow.status = 'split';
+      agreement.escrow.splitPercentage = splitPercentage;
+    }
+  }
+  agreement.updatedAt = now;
+
+  db.audit.push(createAuditEntry(agreement.id, 'DISPUTE_RESOLVED', req.user.email, { disputeId: dispute.id, resolution, releaseTo }));
+  saveDB();
+
+  // Notify all parties
+  notifyDisputeResolved(agreement, resolution, req.user.name || req.user.email).catch(e => console.error('Notify error:', e));
+
+  res.json({ dispute, agreement: { id: agreement.id, status: agreement.status } });
+});
+
+// ---- Cancel Agreement (if allowed) ----
+app.post('/api/agreements/:id/cancel', requireAuth, (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  if (agreement.status === 'cancelled') return res.status(400).json({ error: 'Already cancelled' });
+
+  // Check cancellation policy
+  const policy = agreement.escrow?.rules?.cancellationPolicy || 'mutual';
+  if (agreement.status === 'signed' && policy === 'none') {
+    return res.status(403).json({ error: 'Cancellation not allowed per agreement rules' });
+  }
+
+  const { reason } = req.body;
+  const now = new Date().toISOString();
+
+  agreement.status = 'cancelled';
+  agreement.cancelledBy = req.user.email;
+  agreement.cancelledAt = now;
+  agreement.cancellationReason = reason || 'No reason provided';
+  if (agreement.escrow) agreement.escrow.status = 'cancelled';
+  agreement.updatedAt = now;
+
+  db.audit.push(createAuditEntry(agreement.id, 'CANCELLED', req.user.email, { reason }));
+  saveDB();
+
+  res.json({ ok: true, status: 'cancelled' });
+});
+
+// ---- Get Dispute Details ----
+app.get('/api/agreements/:id/dispute', requireAuth, (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+
+  // Return active dispute or history
+  const disputes = Object.values(db.disputes).filter(d => d.agreementId === req.params.id);
+  const active = agreement.activeDisputeId ? db.disputes[agreement.activeDisputeId] : null;
+
+  res.json({ active, history: disputes });
+});
+
+// ---- Get All Disputes (admin) ----
+app.get('/api/disputes', requireAuth, (req, res) => {
+  const disputes = Object.values(db.disputes)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const enriched = disputes.map(d => {
+    const agreement = db.agreements[d.agreementId];
+    return {
+      ...d,
+      agreementTitle: agreement?.title || 'Unknown',
+      agreementType: agreement?.type || 'Unknown'
+    };
+  });
+
+  res.json(enriched);
+});
+
+// ---- Notification Settings (test email) ----
+app.post('/api/notifications/test', requireAuth, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+
+  const { sendEmail } = require('./notification-engine');
+  const result = await sendEmail(
+    email,
+    'Test Notification',
+    '<h2>AgreeMint Notifications Working!</h2><p>If you received this, email notifications are properly configured.</p>',
+    'AgreeMint test notification'
+  );
+
+  res.json(result);
 });
 
 // ============================================================
@@ -1254,6 +1480,9 @@ app.get('*', (req, res) => {
 //   START
 // ============================================================
 
+// Initialize email transport
+initTransport();
+
 app.listen(PORT, () => {
   console.log(`\n  ${PLATFORM} -- AI Agreement Platform`);
   console.log('  ' + '='.repeat(40));
@@ -1261,5 +1490,7 @@ app.listen(PORT, () => {
   console.log(`  API Key:     ${process.env.OPENAI_API_KEY ? 'Configured' : 'Missing (set OPENAI_API_KEY in .env)'}`);
   console.log(`  Model:       ${process.env.AI_MODEL || 'gpt-4o'}`);
   console.log(`  Agreements:  ${Object.keys(db.agreements).length}`);
+  console.log(`  Disputes:    ${Object.keys(db.disputes || {}).length}`);
+  console.log(`  Notify:      ${process.env.NOTIFY_ENABLED === 'true' ? 'ENABLED' : 'disabled (set NOTIFY_ENABLED=true)'}`);
   console.log('');
 });
