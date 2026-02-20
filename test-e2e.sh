@@ -141,13 +141,14 @@ ST=$(curl -s "$BASE/api/stats" -H "x-auth-token: $TOKEN" | jp "d=json.load(sys.s
 echo ""
 
 echo "== 14. KYW =="
-KR=$(curl -s -X POST "$BASE/api/kyw/auth/social" -H "Content-Type: application/json" -d '{"provider":"twitter","handle":"e2etest","displayName":"E2E"}')
+KYW_HANDLE="e2e$(date +%s)"
+KR=$(curl -s -X POST "$BASE/api/kyw/auth/social" -H "Content-Type: application/json" -d "{\"provider\":\"twitter\",\"handle\":\"$KYW_HANDLE\",\"displayName\":\"E2E\"}")
 KT=$(echo "$KR" | jp "print(json.load(sys.stdin).get('token','X'))")
 [ -n "$KT" ] && [ "$KT" != "X" ]; check $? "KYW social login" ""
 PR=$(curl -s -X POST "$BASE/api/kyw/pledges" -H "Content-Type: application/json" -H "x-auth-token: $KT" -d '{"title":"Gym 5x","description":"test","mode":"self","verificationType":"streak","frequency":"5x/week","targetDays":7,"category":"fitness","isPublic":true}')
 PP=$(echo "$PR" | jp "print(json.load(sys.stdin).get('pledge',{}).get('status','X'))")
 [ "$PP" = "active" ]; check $? "Create pledge" "Got: $PP | $(echo $PR | head -c 150)"
-PID=$(curl -s "$BASE/api/kyw/profile/twitter:e2etest" | jp "d=json.load(sys.stdin);print(d['pledges'][0]['id'])")
+PID=$(curl -s "$BASE/api/kyw/profile/twitter:$KYW_HANDLE" | jp "d=json.load(sys.stdin);print(d['pledges'][0]['id'])")
 CI=$(curl -s -X POST "$BASE/api/kyw/pledges/$PID/checkin" -H "Content-Type: application/json" -H "x-auth-token: $KT" -d '{"method":"streak"}')
 CK=$(echo "$CI" | jp "print(json.load(sys.stdin).get('streak',0))")
 [ "$CK" -ge 1 ] 2>/dev/null; check $? "Check-in (streak=$CK)" "$(echo $CI | head -c 150)"
