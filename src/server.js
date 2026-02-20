@@ -289,7 +289,7 @@ app.post('/api/agreements/:id/sign', (req, res) => {
   }
 
   // Check if already signed by this email
-  if (agreement.signatures.find(s => s.email === email)) {
+  if (agreement.signatures.find(s => s.signerEmail === email || s.email === email)) {
     return res.status(400).json({ error: 'Already signed by this party' });
   }
 
@@ -299,7 +299,7 @@ app.post('/api/agreements/:id/sign', (req, res) => {
 
   // Check if all parties have signed
   const allSigned = agreement.parties.length > 0 &&
-    agreement.parties.every(p => agreement.signatures.some(s => s.email === p.email));
+    agreement.parties.every(p => agreement.signatures.some(s => (s.signerEmail || s.email) === p.email));
 
   if (allSigned) {
     agreement.status = 'signed';
