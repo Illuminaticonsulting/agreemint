@@ -121,17 +121,17 @@ app.get('/api/templates', (req, res) => {
 
 // ---- Create / Generate Agreement ----
 app.post('/api/agreements', requireAuth, async (req, res) => {
-  const { type, title, details, parties, jurisdiction, favorParty, complexity, additionalClauses } = req.body;
+  const { type, title, details, content: manualContent, parties, jurisdiction, favorParty, complexity, additionalClauses } = req.body;
 
-  if (!type || !details) {
-    return res.status(400).json({ error: 'Type and details are required' });
+  if (!type || (!details && !manualContent)) {
+    return res.status(400).json({ error: 'Type and either details or content are required' });
   }
 
   const id = uuidv4();
 
   try {
-    // Generate agreement content via AI
-    const content = await generateAgreement(type, details, {
+    // Use provided content or generate via AI
+    const content = manualContent || await generateAgreement(type, details, {
       jurisdiction: jurisdiction || 'United States (Delaware)',
       favorParty: favorParty || 'balanced',
       complexity: complexity || 'institutional',
