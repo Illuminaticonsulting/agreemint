@@ -39,27 +39,30 @@ const { COMMISSION_RATES, SERVICE_TYPES, SPECIALIZATIONS, SEED_PROFESSIONALS, re
 const { WHITELABEL_TIERS, DEFAULT_BRAND, createTenant, updateBrand, generateCustomCSS, generateBrandedEmail, getPDFBranding, resolveTenant, tenantHasFeature, checkTenantLimits } = require('./whitelabel-engine');
 const { AUDIT_CATEGORIES, SEVERITY, AUDIT_ACTIONS, COMPLIANCE_CHECKLIST, RETENTION_POLICIES, createAuditLog, hashAuditLog, generateSecurityPolicy, createIncident, updateIncident, createDSAR, collectUserData, calculateComplianceScore, getSecurityHeaders } = require('./soc2-engine');
 
-const rateLimit = require('express-rate-limit');
+let rateLimit;
+try { rateLimit = require('express-rate-limit'); } catch(e) { console.warn('express-rate-limit not installed, rate limiting disabled'); }
 
 const app = express();
 const PORT = process.env.PORT || 3500;
 const PLATFORM = process.env.PLATFORM_NAME || 'AgreeMint';
 
-// ---- Rate Limiting ----
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,                   // max 200 requests per window per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later.' }
-});
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,                    // stricter for auth
-  message: { error: 'Too many login attempts, please try again later.' }
-});
-app.use('/api/', apiLimiter);
-app.use('/api/auth/', authLimiter);
+// ---- Rate Limiting (graceful if package missing) ----
+if (rateLimit) {
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+  });
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { error: 'Too many login attempts, please try again later.' }
+  });
+  app.use('/api/', apiLimiter);
+  app.use('/api/auth/', authLimiter);
+}
 
 // ---- Data Directory ----
 const DATA_DIR = path.join(__dirname, '..', 'data');
