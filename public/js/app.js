@@ -788,7 +788,7 @@
       <div class="page-header">
         <div>
           <h1>&#128274; Escrow</h1>
-          <p>On-chain escrow for bets, sales, and service agreements</p>
+          <p>Multi-crypto escrow with adjustable rules, mutual verification, and on-chain settlement</p>
         </div>
       </div>
 
@@ -796,7 +796,7 @@
         <div class="stat-card" style="border-color:#f59e0b;">
           <span class="stat-icon">&#128176;</span>
           <div class="stat-label">Escrow Type</div>
-          <div class="stat-value" style="font-size:16px;">Sale / Bet / Service</div>
+          <div class="stat-value" style="font-size:16px;">Sale / Bet / Service / Milestone</div>
         </div>
         <div class="stat-card" style="border-color:var(--green);">
           <span class="stat-icon">&#9939;</span>
@@ -806,55 +806,102 @@
         <div class="stat-card" style="border-color:var(--accent);">
           <span class="stat-icon">&#128274;</span>
           <div class="stat-label">Currencies</div>
-          <div class="stat-value" style="font-size:16px;">ETH / ERC-20 / USDC</div>
+          <div class="stat-value" style="font-size:16px;">BTC / ETH / USDT / USDC / XMR / DAI</div>
         </div>
         <div class="stat-card" style="border-color:#ef4444;">
           <span class="stat-icon">&#9878;</span>
-          <div class="stat-label">Platform Fee</div>
-          <div class="stat-value" style="font-size:16px;">0.5%</div>
+          <div class="stat-label">Verification</div>
+          <div class="stat-value" style="font-size:16px;">Mutual Acceptance Required</div>
         </div>
       </div>
 
       <div class="create-section">
         <h2>How AgreeMint Escrow Works</h2>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px;">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:16px;">
           <div style="text-align:center;padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);">
             <div style="font-size:32px;margin-bottom:8px;">1&#65039;&#8419;</div>
             <strong>Create Agreement</strong>
-            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Generate an AI-powered contract with terms</p>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">AI-generated contract with terms</p>
           </div>
           <div style="text-align:center;padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);">
             <div style="font-size:32px;margin-bottom:8px;">2&#65039;&#8419;</div>
-            <strong>Create Escrow</strong>
-            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Lock funds in smart contract tied to the agreement hash</p>
+            <strong>Set Currency & Rules</strong>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Choose BTC, ETH, USDT, XMR. Set timeouts, disputes, fees</p>
           </div>
           <div style="text-align:center;padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);">
             <div style="font-size:32px;margin-bottom:8px;">3&#65039;&#8419;</div>
-            <strong>Both Parties Approve</strong>
-            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Or arbiter resolves any disputes on-chain</p>
+            <strong>Both Parties Accept</strong>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Mutual verification - both must sign and approve escrow terms</p>
           </div>
           <div style="text-align:center;padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);">
             <div style="font-size:32px;margin-bottom:8px;">4&#65039;&#8419;</div>
-            <strong>Funds Released</strong>
-            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Winner/seller receives funds minus 0.5% platform fee</p>
+            <strong>Deposit Funds</strong>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Lock crypto in smart contract tied to agreement hash</p>
+          </div>
+          <div style="text-align:center;padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);">
+            <div style="font-size:32px;margin-bottom:8px;">5&#65039;&#8419;</div>
+            <strong>Settle or Dispute</strong>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Both approve release, or arbiter resolves disputes</p>
           </div>
         </div>
       </div>
 
       <div class="create-section">
-        <h2>Escrow Use Cases</h2>
+        <h2>Supported Currencies</h2>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px;">
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #627eea;">
+            <h3 style="color:#627eea;margin-bottom:8px;">&#9830; ETH - Ethereum</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Native ETH on Base. No wrapping needed. Lowest fees.</p>
+          </div>
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #f7931a;">
+            <h3 style="color:#f7931a;margin-bottom:8px;">&#8383; BTC - Bitcoin</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Wrapped BTC (WBTC) on Base network. Bridge your BTC to use escrow.</p>
+          </div>
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #26a17b;">
+            <h3 style="color:#26a17b;margin-bottom:8px;">&#8378; USDT - Tether</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Stablecoin pegged to USD. Ideal for sales and service contracts.</p>
+          </div>
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #2775ca;">
+            <h3 style="color:#2775ca;margin-bottom:8px;">&#36; USDC - USD Coin</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Regulated stablecoin by Circle. Reliable dollar-denominated escrow.</p>
+          </div>
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #ff6600;">
+            <h3 style="color:#ff6600;margin-bottom:8px;">&#9432; XMR - Monero</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Private escrow via atomic swap bridge. Maximum confidentiality.</p>
+          </div>
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #f5ac37;">
+            <h3 style="color:#f5ac37;margin-bottom:8px;">&#9670; DAI - Stablecoin</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Decentralized stablecoin by MakerDAO. No central issuer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="create-section">
+        <h2>Escrow Rule Presets</h2>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:12px;">
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid var(--accent);">
+            <h3 style="color:var(--accent);margin-bottom:8px;">&#128274; Standard</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Both approve. Arbiter resolves disputes. 30-day timeout. 0.5% fee.</p>
+          </div>
           <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #f59e0b;">
-            <h3 style="color:#f59e0b;margin-bottom:8px;">&#127918; Bets & Wagers</h3>
-            <p style="font-size:13px;color:var(--text-secondary);">Two parties agree on a bet. Both deposit funds. Arbiter decides the winner. Loser's deposit goes to winner.</p>
+            <h3 style="color:#f59e0b;margin-bottom:8px;">&#127918; Bet / Wager</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Equal deposits. Arbiter declares winner. 90-day timeout. 1% fee.</p>
           </div>
           <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid var(--green);">
-            <h3 style="color:var(--green);margin-bottom:8px;">&#128722; Sales & Purchases</h3>
-            <p style="font-size:13px;color:var(--text-secondary);">Buyer deposits payment. Seller delivers goods/services. Buyer confirms delivery. Funds released to seller.</p>
+            <h3 style="color:var(--green);margin-bottom:8px;">&#128722; Sale / Purchase</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Buyer deposits. Seller delivers. Buyer confirms. 14-day timeout.</p>
           </div>
-          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid var(--accent);">
-            <h3 style="color:var(--accent);margin-bottom:8px;">&#128188; Service Contracts</h3>
-            <p style="font-size:13px;color:var(--text-secondary);">Client deposits milestone payment. Contractor completes work. Both approve release on completion.</p>
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #8b5cf6;">
+            <h3 style="color:#8b5cf6;margin-bottom:8px;">&#128203; Milestone</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Partial releases at milestones. 180-day timeout. 0.75% fee.</p>
+          </div>
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid #3b82f6;">
+            <h3 style="color:#3b82f6;margin-bottom:8px;">&#9200; Time-Locked</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Auto-releases after timer expires. No disputes. 0.25% fee.</p>
+          </div>
+          <div style="padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border-left:3px solid var(--green);">
+            <h3 style="color:var(--green);margin-bottom:8px;">&#129309; Keep Your Word</h3>
+            <p style="font-size:13px;color:var(--text-secondary);">Stake on a pledge. Lose funds if you break your word. Free.</p>
           </div>
         </div>
       </div>
@@ -874,8 +921,9 @@
           <div style="margin-bottom:8px;"><span style="color:var(--accent);">Contract:</span> AgreeMintEscrow.sol</div>
           <div style="margin-bottom:8px;"><span style="color:var(--accent);">Network:</span> Base (Chain ID: 8453)</div>
           <div style="margin-bottom:8px;"><span style="color:var(--accent);">Security:</span> ReentrancyGuard, SafeERC20</div>
-          <div style="margin-bottom:8px;"><span style="color:var(--accent);">Supports:</span> ETH, USDC, any ERC-20</div>
-          <div><span style="color:var(--accent);">Dispute Resolution:</span> Arbiter-based (configurable)</div>
+          <div style="margin-bottom:8px;"><span style="color:var(--accent);">Currencies:</span> ETH, BTC (WBTC), USDT, USDC, XMR (atomic swap), DAI</div>
+          <div style="margin-bottom:8px;"><span style="color:var(--accent);">Rules:</span> Adjustable timeout, auto-release, milestones, disputes</div>
+          <div><span style="color:var(--accent);">Verification:</span> Mutual acceptance required before funds lock</div>
         </div>
       </div>
     `;
@@ -914,10 +962,11 @@
     container.innerHTML = `
       <div class="analysis-result">
         <h2>&#128274; Create Escrow for This Agreement</h2>
+        <p style="color:var(--text-muted);margin:8px 0 16px;">Both parties must accept escrow terms before funds are locked.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
           <div class="form-group">
             <label>Escrow Type</label>
-            <select class="form-select" id="escrow-type">
+            <select class="form-select" id="escrow-type" onchange="updateEscrowRules()">
               <option value="Sale">Sale / Purchase</option>
               <option value="Bet">Bet / Wager</option>
               <option value="Service">Service Contract</option>
@@ -925,20 +974,53 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Amount (in wei or token units)</label>
-            <input class="form-input" id="escrow-amount" placeholder="e.g. 1000000000000000000 (1 ETH)">
+            <label>Currency</label>
+            <select class="form-select" id="escrow-currency">
+              <option value="ETH">ETH - Ethereum (native)</option>
+              <option value="BTC">BTC - Bitcoin (WBTC)</option>
+              <option value="USDT">USDT - Tether USD</option>
+              <option value="USDC">USDC - USD Coin</option>
+              <option value="XMR">XMR - Monero (atomic swap)</option>
+              <option value="DAI">DAI - Stablecoin</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Amount</label>
+            <input class="form-input" id="escrow-amount" placeholder="e.g. 1.5 (in token units)">
           </div>
           <div class="form-group">
             <label>Counterparty Wallet Address</label>
             <input class="form-input" id="escrow-partyB" placeholder="0x...">
           </div>
           <div class="form-group">
-            <label>Arbiter Wallet Address</label>
-            <input class="form-input" id="escrow-arbiter" placeholder="0x... (dispute resolver)">
+            <label>Arbiter Wallet (dispute resolver)</label>
+            <input class="form-input" id="escrow-arbiter" placeholder="0x...">
           </div>
           <div class="form-group">
-            <label>Token (leave empty for ETH)</label>
-            <input class="form-input" id="escrow-token" placeholder="0x0000...0000 for ETH">
+            <label>Timeout (days)</label>
+            <input class="form-input" id="escrow-timeout" type="number" value="30" min="1">
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:16px;background:var(--bg-tertiary);border-radius:var(--radius-sm);border:1px solid var(--border);">
+          <h3 style="margin-bottom:12px;">&#9881; Adjustable Rules</h3>
+          <div id="escrow-rules-display" style="font-size:13px;color:var(--text-secondary);"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+            <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="rule-both-deposit"> Both parties must deposit
+            </label>
+            <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="rule-refund-timeout" checked> Refund on timeout
+            </label>
+            <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="rule-partial-release"> Allow partial release
+            </label>
+            <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="rule-delivery-confirm"> Require delivery confirmation
+            </label>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <label style="font-size:12px;">Dispute Window (days)</label>
+            <input class="form-input" id="rule-dispute-window" type="number" value="7" min="0" style="max-width:200px;">
           </div>
         </div>
         <div style="display:flex;gap:12px;margin-top:16px;">
@@ -947,31 +1029,53 @@
         <div id="escrow-result"></div>
       </div>
     `;
+    updateEscrowRules();
+  };
+
+  window.updateEscrowRules = function() {
+    const type = document.getElementById('escrow-type').value;
+    const presets = { Sale: 'Buyer deposits, seller delivers, buyer confirms.', Bet: 'Equal deposits, arbiter decides winner.', Service: 'Client deposits milestone, contractor delivers.', Custom: 'Fully customizable rules.' };
+    const el = document.getElementById('escrow-rules-display');
+    if (el) el.textContent = presets[type] || '';
   };
 
   window.prepareEscrow = async function(id) {
     const type = document.getElementById('escrow-type').value;
+    const currency = document.getElementById('escrow-currency').value;
     const amount = document.getElementById('escrow-amount').value;
     const partyB = document.getElementById('escrow-partyB').value;
     const arbiter = document.getElementById('escrow-arbiter').value;
-    const token = document.getElementById('escrow-token').value || '0x0000000000000000000000000000000000000000';
+    const timeout = document.getElementById('escrow-timeout').value;
 
     if (!amount || !partyB || !arbiter) { toast('Fill in all required fields', 'error'); return; }
+
+    const rules = {
+      timeoutDays: parseInt(timeout) || 30,
+      requireBothDeposit: document.getElementById('rule-both-deposit').checked,
+      refundOnTimeout: document.getElementById('rule-refund-timeout').checked,
+      allowPartialRelease: document.getElementById('rule-partial-release').checked,
+      deliveryConfirmation: document.getElementById('rule-delivery-confirm').checked,
+      disputeWindowDays: parseInt(document.getElementById('rule-dispute-window').value) || 7
+    };
 
     genText.textContent = 'Preparing escrow transaction...';
     genOverlay.style.display = 'flex';
     try {
-      const data = await api('POST', '/api/agreements/' + id + '/escrow', { type, amount, partyB, arbiter, token });
+      const data = await api('POST', '/api/agreements/' + id + '/escrow', { type, currency, amount, partyB, arbiter, rules });
       genOverlay.style.display = 'none';
+      const cur = data.escrowTx.currency || {};
       document.getElementById('escrow-result').innerHTML =
         '<div style="margin-top:20px;padding:20px;background:var(--bg-tertiary);border-radius:var(--radius);border:1px solid var(--green);">' +
-        '<h3 style="color:var(--green);">Escrow Transaction Ready</h3>' +
-        '<p>Agreement Hash: <code>' + data.anchor.contentHash + '</code></p>' +
-        '<p>Contract: <code>' + (data.escrowTx.contract || 'Not deployed yet') + '</code></p>' +
-        '<p>Network: Base (Chain ID: ' + data.escrowTx.chainId + ')</p>' +
-        '<p style="color:var(--text-muted);margin-top:12px;">Connect your wallet to submit this transaction on-chain.</p>' +
+        '<h3 style="color:var(--green);">&#10004; Escrow Transaction Ready</h3>' +
+        '<p><strong>Currency:</strong> ' + (cur.symbol || currency) + ' (' + (cur.name || '') + ')</p>' +
+        '<p><strong>Amount:</strong> ' + amount + ' ' + (cur.symbol || '') + '</p>' +
+        '<p><strong>Agreement Hash:</strong> <code>' + data.anchor.contentHash + '</code></p>' +
+        '<p><strong>Contract:</strong> <code>' + (data.escrowTx.contract || 'Not deployed yet') + '</code></p>' +
+        '<p><strong>Network:</strong> Base (Chain ID: ' + data.escrowTx.chainId + ')</p>' +
+        '<p style="margin-top:12px;font-size:13px;color:var(--text-muted);">&#128274; Both parties must accept the escrow terms. Share the agreement link with the counterparty to get their acceptance.</p>' +
+        '<p style="margin-top:8px;font-size:13px;color:var(--yellow);">Connect your wallet to submit this transaction on-chain.</p>' +
         '</div>';
-      toast('Escrow transaction prepared', 'success');
+      toast('Escrow ready - ' + currency + ' on Base', 'success');
     } catch(err) {
       genOverlay.style.display = 'none';
       toast('Error: ' + err.message, 'error');

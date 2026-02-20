@@ -17,7 +17,8 @@ const { generateAgreement, analyzeAgreement, negotiateAgreement, extractKeyTerms
 const { hashDocument, createAuditEntry, signAgreement, generateCertificate, verifyDocumentIntegrity, generateVerificationToken } = require('./crypto-engine');
 const { generatePDF, generateCertificatePDF, formatType } = require('./pdf-engine');
 const { AGREEMENT_TYPES, JURISDICTIONS, CATEGORIES } = require('./templates');
-const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS } = require('./blockchain-engine');
+const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS, ESCROW_CURRENCIES, ESCROW_RULE_PRESETS } = require('./blockchain-engine');
+const { calculateSocialScore, createPledge, resolvePledge, hashPledge, PLEDGE_CATEGORIES } = require('./kyw-engine');
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -41,7 +42,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ---- Data Store ----
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-let db = { agreements: {}, sessions: {}, users: {}, audit: [] };
+let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {} };
 
 function loadDB() {
   try {
@@ -550,7 +551,7 @@ app.post('/api/agreements/:id/escrow', requireAuth, (req, res) => {
   const agreement = db.agreements[req.params.id];
   if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
 
-  const { type, partyB, arbiter, token, amount, metadata } = req.body;
+  const { type, partyB, arbiter, token, currency, amount, rules, metadata } = req.body;
   if (!partyB || !amount) return res.status(400).json({ error: 'partyB and amount required' });
 
   const anchor = createAnchorRecord(agreement);
@@ -558,10 +559,12 @@ app.post('/api/agreements/:id/escrow', requireAuth, (req, res) => {
     type: type || 'Sale',
     partyB,
     arbiter: arbiter || req.body.arbiterAddress,
-    token: token || '0x0000000000000000000000000000000000000000',
+    currency: currency || 'ETH',
+    token: token,
     amount,
     agreementHash: anchor.contentHash,
     agreementId: agreement.id,
+    rules: rules || {},
     metadata: { ...metadata, title: agreement.title }
   });
 
@@ -570,13 +573,17 @@ app.post('/api/agreements/:id/escrow', requireAuth, (req, res) => {
   agreement.escrow.prepared = true;
   agreement.escrow.preparedAt = new Date().toISOString();
   agreement.escrow.amount = amount;
+  agreement.escrow.currency = currency || 'ETH';
   agreement.escrow.type = type || 'Sale';
+  agreement.escrow.rules = escrowTx.rules;
+  agreement.escrow.partyAAccepted = true;
+  agreement.escrow.partyBAccepted = false;
   agreement.updatedAt = new Date().toISOString();
 
-  db.audit.push(createAuditEntry(agreement.id, 'ESCROW_PREPARED', req.user.email, { amount, type }));
+  db.audit.push(createAuditEntry(agreement.id, 'ESCROW_PREPARED', req.user.email, { amount, type, currency }));
   saveDB();
 
-  res.json({ escrowTx, anchor, abi: ESCROW_ABI });
+  res.json({ escrowTx, anchor, abi: ESCROW_ABI, currencies: ESCROW_CURRENCIES });
 });
 
 // ---- Confirm escrow creation (after wallet tx) ----
@@ -614,7 +621,9 @@ app.get('/api/blockchain/config', requireAuth, (req, res) => {
       rpcUrl: process.env.ESCROW_RPC_URL || 'https://mainnet.base.org',
       chainId: process.env.ESCROW_CHAIN_ID || '8453',
       contract: process.env.ESCROW_CONTRACT_ADDRESS || '',
-      explorer: 'https://basescan.org'
+      explorer: 'https://basescan.org',
+      currencies: ESCROW_CURRENCIES,
+      rulePresets: ESCROW_RULE_PRESETS
     },
     abi: ESCROW_ABI
   });
@@ -623,6 +632,304 @@ app.get('/api/blockchain/config', requireAuth, (req, res) => {
 // ---- Public verification page ----
 app.get('/verify/:id', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'verify.html'));
+});
+
+// ---- Mutual escrow acceptance ----
+app.post('/api/agreements/:id/escrow/accept', (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  if (!agreement.escrow || !agreement.escrow.prepared) return res.status(400).json({ error: 'No escrow prepared' });
+
+  const { party, wallet, signature } = req.body;
+  if (!party || !wallet) return res.status(400).json({ error: 'Party name and wallet required' });
+
+  if (!agreement.escrow.acceptances) agreement.escrow.acceptances = [];
+  
+  // Check not already accepted by this wallet
+  if (agreement.escrow.acceptances.find(a => a.wallet.toLowerCase() === wallet.toLowerCase())) {
+    return res.status(400).json({ error: 'Already accepted by this wallet' });
+  }
+
+  agreement.escrow.acceptances.push({
+    party,
+    wallet,
+    signature: signature || null,
+    acceptedAt: new Date().toISOString()
+  });
+
+  // Check if both parties accepted
+  const bothAccepted = agreement.escrow.acceptances.length >= 2;
+  agreement.escrow.bothAccepted = bothAccepted;
+  agreement.updatedAt = new Date().toISOString();
+
+  db.audit.push(createAuditEntry(agreement.id, 'ESCROW_ACCEPTED', party, { wallet }));
+  saveDB();
+
+  res.json({ ok: true, bothAccepted, acceptances: agreement.escrow.acceptances });
+});
+
+// ---- Escrow currencies & rules config (public) ----
+app.get('/api/escrow/config', (req, res) => {
+  res.json({
+    currencies: ESCROW_CURRENCIES,
+    rulePresets: ESCROW_RULE_PRESETS
+  });
+});
+
+// ============================================================
+//   KEEP YOUR WORD — FREE SOCIAL SCORE PRODUCT
+// ============================================================
+
+// ---- KYW Auth: Social Login (link-based verification) ----
+app.post('/api/kyw/auth/social', (req, res) => {
+  const { provider, handle, displayName, profileUrl, avatarUrl } = req.body;
+  if (!provider || !handle) return res.status(400).json({ error: 'Provider and handle required' });
+
+  const validProviders = ['twitter', 'x', 'instagram', 'google', 'github'];
+  if (!validProviders.includes(provider.toLowerCase())) {
+    return res.status(400).json({ error: 'Invalid provider. Use: twitter, x, instagram, google, github' });
+  }
+
+  const normalizedProvider = provider.toLowerCase() === 'x' ? 'twitter' : provider.toLowerCase();
+  const userId = `${normalizedProvider}:${handle.toLowerCase().replace('@', '')}`;
+
+  if (!db.kywUsers[userId]) {
+    db.kywUsers[userId] = {
+      id: userId,
+      provider: normalizedProvider,
+      handle: handle.replace('@', ''),
+      displayName: displayName || handle,
+      profileUrl: profileUrl || '',
+      avatarUrl: avatarUrl || '',
+      pledges: [],
+      joinedAt: new Date().toISOString(),
+      verified: false,
+      verificationCode: uuidv4().substring(0, 8).toUpperCase()
+    };
+  }
+
+  const user = db.kywUsers[userId];
+  const token = uuidv4();
+  authTokens[token] = { userId, role: 'kyw_user', provider: normalizedProvider, handle: user.handle };
+
+  saveDB();
+  res.json({
+    token,
+    user: {
+      id: userId,
+      handle: user.handle,
+      displayName: user.displayName,
+      provider: user.provider,
+      avatarUrl: user.avatarUrl,
+      verified: user.verified,
+      verificationCode: user.verificationCode,
+      score: calculateSocialScore(user)
+    }
+  });
+});
+
+// ---- KYW Verify social account (post verification code in bio) ----
+app.post('/api/kyw/auth/verify', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token || !authTokens[token]) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = authTokens[token];
+  const user = db.kywUsers[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  user.verified = true;
+  user.verifiedAt = new Date().toISOString();
+  saveDB();
+
+  res.json({ ok: true, verified: true });
+});
+
+// ---- KYW: Get user profile / score ----
+app.get('/api/kyw/profile/:userId', (req, res) => {
+  const user = db.kywUsers[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  res.json({
+    id: user.id,
+    handle: user.handle,
+    displayName: user.displayName,
+    provider: user.provider,
+    avatarUrl: user.avatarUrl,
+    verified: user.verified,
+    joinedAt: user.joinedAt,
+    score: calculateSocialScore(user),
+    pledges: user.pledges.filter(p => p.isPublic).map(p => ({
+      id: p.id,
+      title: p.title,
+      category: p.category,
+      status: p.status,
+      deadline: p.deadline,
+      hasStake: p.hasStake,
+      contentHash: p.contentHash,
+      createdAt: p.createdAt,
+      resolvedAt: p.resolvedAt
+    }))
+  });
+});
+
+// ---- KYW: Create pledge ----
+app.post('/api/kyw/pledges', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token || !authTokens[token]) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = authTokens[token];
+  const user = db.kywUsers[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const pledge = createPledge(userId, req.body);
+  user.pledges.push(pledge);
+  db.pledges[pledge.id] = { ...pledge, userHandle: user.handle, userProvider: user.provider };
+  saveDB();
+
+  res.json({ pledge, score: calculateSocialScore(user) });
+});
+
+// ---- KYW: Get public pledge feed ----
+app.get('/api/kyw/feed', (req, res) => {
+  const { category, status, limit } = req.query;
+  let pledges = Object.values(db.pledges)
+    .filter(p => p.isPublic)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (category) pledges = pledges.filter(p => p.category === category);
+  if (status) pledges = pledges.filter(p => p.status === status);
+
+  const max = parseInt(limit) || 50;
+  pledges = pledges.slice(0, max);
+
+  // Attach user scores
+  const feed = pledges.map(p => {
+    const user = db.kywUsers[p.userId];
+    return {
+      ...p,
+      user: user ? {
+        handle: user.handle,
+        provider: user.provider,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+        verified: user.verified,
+        score: calculateSocialScore(user)
+      } : null
+    };
+  });
+
+  res.json(feed);
+});
+
+// ---- KYW: Resolve pledge (kept/broken) ----
+app.post('/api/kyw/pledges/:id/resolve', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token || !authTokens[token]) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = authTokens[token];
+  const user = db.kywUsers[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const { resolution } = req.body; // 'kept' or 'broken'
+  if (!['kept', 'broken'].includes(resolution)) return res.status(400).json({ error: 'Resolution must be "kept" or "broken"' });
+
+  const pledge = user.pledges.find(p => p.id === req.params.id);
+  if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
+  if (pledge.status !== 'active') return res.status(400).json({ error: 'Pledge is already resolved' });
+
+  resolvePledge(pledge, resolution, userId);
+
+  // Update in global pledges too
+  if (db.pledges[pledge.id]) {
+    db.pledges[pledge.id] = { ...pledge, userHandle: user.handle, userProvider: user.provider };
+  }
+
+  saveDB();
+  res.json({ pledge, score: calculateSocialScore(user) });
+});
+
+// ---- KYW: React to pledge (vouch/doubt) ----
+app.post('/api/kyw/pledges/:id/react', (req, res) => {
+  const { reaction } = req.body; // 'vouch' or 'doubt'
+  if (!['vouch', 'doubt'].includes(reaction)) return res.status(400).json({ error: 'Reaction must be "vouch" or "doubt"' });
+
+  const pledge = db.pledges[req.params.id];
+  if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
+
+  pledge.reactions[reaction] = (pledge.reactions[reaction] || 0) + 1;
+
+  // Also update in user's pledge array
+  const user = db.kywUsers[pledge.userId];
+  if (user) {
+    const userPledge = user.pledges.find(p => p.id === req.params.id);
+    if (userPledge) userPledge.reactions = pledge.reactions;
+  }
+
+  saveDB();
+  res.json({ reactions: pledge.reactions });
+});
+
+// ---- KYW: Get single pledge ----
+app.get('/api/kyw/pledges/:id', (req, res) => {
+  const pledge = db.pledges[req.params.id];
+  if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
+
+  const user = db.kywUsers[pledge.userId];
+  res.json({
+    pledge,
+    user: user ? {
+      handle: user.handle,
+      provider: user.provider,
+      displayName: user.displayName,
+      verified: user.verified,
+      score: calculateSocialScore(user)
+    } : null
+  });
+});
+
+// ---- KYW: Leaderboard ----
+app.get('/api/kyw/leaderboard', (req, res) => {
+  const users = Object.values(db.kywUsers)
+    .map(u => ({
+      id: u.id,
+      handle: u.handle,
+      provider: u.provider,
+      displayName: u.displayName,
+      avatarUrl: u.avatarUrl,
+      verified: u.verified,
+      score: calculateSocialScore(u)
+    }))
+    .filter(u => u.score.totalPledges > 0)
+    .sort((a, b) => b.score.score - a.score.score)
+    .slice(0, 50);
+
+  res.json(users);
+});
+
+// ---- KYW: Categories ----
+app.get('/api/kyw/categories', (req, res) => {
+  res.json(PLEDGE_CATEGORIES);
+});
+
+// ---- KYW: Stats ----
+app.get('/api/kyw/stats', (req, res) => {
+  const allPledges = Object.values(db.pledges);
+  res.json({
+    totalUsers: Object.keys(db.kywUsers).length,
+    totalPledges: allPledges.length,
+    activePledges: allPledges.filter(p => p.status === 'active').length,
+    keptPledges: allPledges.filter(p => p.status === 'kept').length,
+    brokenPledges: allPledges.filter(p => p.status === 'broken').length,
+    categories: PLEDGE_CATEGORIES
+  });
+});
+
+// ---- Keep Your Word standalone page ----
+app.get('/keepyourword', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'keepyourword.html'));
+});
+app.get('/kyw', (req, res) => {
+  res.redirect('/keepyourword');
 });
 
 // ============================================================

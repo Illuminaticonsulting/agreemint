@@ -13,6 +13,7 @@
  */
 
 const crypto = require('crypto');
+const { ESCROW_CURRENCIES, ESCROW_RULE_PRESETS } = require('./kyw-engine');
 
 // ─── Story Protocol Config ─────────────────────────────
 const STORY_RPC = process.env.STORY_RPC_URL || 'https://odyssey.storyrpc.io';
@@ -118,31 +119,43 @@ function prepareEscrowTransaction(escrowData) {
     type = 'Sale',     // Sale, Bet, Service, Custom
     partyB,
     arbiter,
-    token = '0x0000000000000000000000000000000000000000',  // ETH
+    currency = 'ETH',
+    token,
     amount,
     agreementHash,
     agreementId,
+    rules = {},
     metadata = {}
   } = escrowData;
 
   const escrowTypes = { Sale: 0, Bet: 1, Service: 2, Custom: 3 };
+
+  // Resolve token address from currency
+  const currencyInfo = ESCROW_CURRENCIES[currency] || ESCROW_CURRENCIES.ETH;
+  const tokenAddress = token || currencyInfo.address || '0x0000000000000000000000000000000000000000';
+
+  // Merge rules with preset if applicable
+  const rulePreset = ESCROW_RULE_PRESETS[type.toLowerCase()] || ESCROW_RULE_PRESETS.standard;
+  const finalRules = { ...rulePreset, ...rules };
 
   return {
     contract: ESCROW_CONTRACT,
     chainId: process.env.ESCROW_CHAIN_ID || '8453',  // Base mainnet
     rpcUrl: ESCROW_RPC,
     method: 'createEscrow',
+    currency: currencyInfo,
+    rules: finalRules,
     params: {
       _type: escrowTypes[type] || 3,
       _partyB: partyB,
       _arbiter: arbiter,
-      _token: token,
+      _token: tokenAddress,
       _amount: amount,
       _agreementHash: agreementHash,
       _agreementId: agreementId,
-      _metadata: JSON.stringify(metadata)
+      _metadata: JSON.stringify({ ...metadata, currency: currency, rules: finalRules })
     },
-    value: token === '0x0000000000000000000000000000000000000000' ? amount : '0',
+    value: (currencyInfo.type === 'native' || tokenAddress === '0x0000000000000000000000000000000000000000') ? amount : '0',
     abi: ESCROW_ABI
   };
 }
@@ -322,5 +335,7 @@ module.exports = {
   ESCROW_ABI,
   STORY_CONTRACTS,
   STORY_RPC,
-  ESCROW_RPC
+  ESCROW_RPC,
+  ESCROW_CURRENCIES,
+  ESCROW_RULE_PRESETS
 };
