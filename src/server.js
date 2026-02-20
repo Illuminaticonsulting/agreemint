@@ -17,7 +17,7 @@ const { generateAgreement, analyzeAgreement, negotiateAgreement, extractKeyTerms
 const { hashDocument, createAuditEntry, signAgreement, generateCertificate, verifyDocumentIntegrity, generateVerificationToken } = require('./crypto-engine');
 const { generatePDF, generateCertificatePDF, formatType } = require('./pdf-engine');
 const { AGREEMENT_TYPES, JURISDICTIONS, CATEGORIES } = require('./templates');
-const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS, ESCROW_CURRENCIES, ESCROW_RULE_PRESETS } = require('./blockchain-engine');
+const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS, ESCROW_CURRENCIES, ESCROW_RULE_PRESETS, createEscrowOnChain, getEscrowOnChain, getEscrowsByUser, getEscrowByAgreementHash, getContractStatus } = require('./blockchain-engine');
 const { calculateSocialScore, calculateDatingScore, createPledge, resolvePledge, processCheckin, hashPledge, PLEDGE_CATEGORIES, VERIFICATION_TYPES, SELF_PLEDGE_TEMPLATES, DATE_PLEDGE_TEMPLATES } = require('./kyw-engine');
 const { initTransport, notifyAgreementSent, notifyPartySigned, notifyDisputeRaised, notifyDisputeResolved, notifyEscrowEvent } = require('./notification-engine');
 
@@ -702,6 +702,113 @@ app.get('/api/escrow/config', (req, res) => {
     currencies: ESCROW_CURRENCIES,
     rulePresets: ESCROW_RULE_PRESETS
   });
+});
+
+// ════════════════════════════════════════════════════════
+//   ON-CHAIN ESCROW (Real Smart Contract Interaction)
+// ════════════════════════════════════════════════════════
+
+// ---- Contract status check ----
+app.get('/api/escrow/status', async (req, res) => {
+  try {
+    const status = await getContractStatus();
+    res.json(status);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Create escrow ON-CHAIN ----
+app.post('/api/agreements/:id/escrow/deploy', requireAuth, async (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+
+  const { type, partyB, arbiter, currency, amount, metadata } = req.body;
+  if (!partyB || !amount) return res.status(400).json({ error: 'partyB and amount required' });
+
+  // Create anchor hash for the agreement
+  const anchor = createAnchorRecord(agreement);
+
+  // Deploy escrow to the blockchain
+  const result = await createEscrowOnChain({
+    type: type || 'Sale',
+    partyB,
+    arbiter,
+    currency: currency || 'ETH',
+    amount,
+    agreementHash: anchor.contentHash,
+    agreementId: agreement.id,
+    metadata: { ...metadata, title: agreement.title }
+  });
+
+  if (result.success) {
+    // Store on-chain escrow data
+    if (!agreement.escrow) agreement.escrow = {};
+    agreement.escrow.onChain = true;
+    agreement.escrow.txHash = result.txHash;
+    agreement.escrow.escrowId = result.escrowId;
+    agreement.escrow.blockNumber = result.blockNumber;
+    agreement.escrow.contract = result.contract;
+    agreement.escrow.network = result.network;
+    agreement.escrow.explorerUrl = result.explorerUrl;
+    agreement.escrow.deployedAt = new Date().toISOString();
+    agreement.escrow.amount = amount;
+    agreement.escrow.currency = currency || 'ETH';
+    agreement.escrow.type = type || 'Sale';
+    agreement.updatedAt = new Date().toISOString();
+
+    db.audit.push(createAuditEntry(agreement.id, 'ESCROW_DEPLOYED_ON_CHAIN', req.user.email, {
+      txHash: result.txHash,
+      escrowId: result.escrowId,
+      amount,
+      currency
+    }));
+    saveDB();
+
+    notifyEscrowEvent(agreement, 'created', `Escrow deployed on-chain. TX: ${result.txHash}`).catch(() => {});
+  }
+
+  res.json(result);
+});
+
+// ---- Read escrow state FROM chain ----
+app.get('/api/escrow/:escrowId/chain', async (req, res) => {
+  try {
+    const result = await getEscrowOnChain(parseInt(req.params.escrowId));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Get escrows by user wallet address ----
+app.get('/api/escrow/user/:address', async (req, res) => {
+  try {
+    const result = await getEscrowsByUser(req.params.address);
+    if (result.success && result.escrowIds.length > 0) {
+      // Fetch full details for each escrow
+      const escrows = [];
+      for (const id of result.escrowIds) {
+        const detail = await getEscrowOnChain(parseInt(id));
+        if (detail.success) escrows.push(detail.escrow);
+      }
+      res.json({ success: true, escrows });
+    } else {
+      res.json(result);
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Look up escrow by agreement hash ----
+app.get('/api/escrow/agreement/:hash', async (req, res) => {
+  try {
+    const result = await getEscrowByAgreementHash(req.params.hash);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ============================================================
@@ -1434,13 +1541,19 @@ app.get('/kyw', (req, res) => {
 //   HEALTH
 // ============================================================
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  let escrowStatus = { configured: false };
+  try {
+    escrowStatus = await getContractStatus();
+  } catch (e) { /* ignore */ }
+
   res.json({
     status: 'ok',
     platform: PLATFORM,
     apiConfigured: !!process.env.OPENAI_API_KEY,
     model: process.env.AI_MODEL || 'gpt-4o',
     agreements: Object.keys(db.agreements).length,
+    escrowContract: escrowStatus,
     uptime: process.uptime()
   });
 });

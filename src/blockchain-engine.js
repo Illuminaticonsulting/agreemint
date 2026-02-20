@@ -13,6 +13,7 @@
  */
 
 const crypto = require('crypto');
+const { ethers } = require('ethers');
 const { ESCROW_CURRENCIES, ESCROW_RULE_PRESETS } = require('./kyw-engine');
 
 // ─── Story Protocol Config ─────────────────────────────
@@ -324,6 +325,20 @@ const ESCROW_ABI = [
       { name: 'amount', type: 'uint256', indexed: false },
       { name: 'agreementHash', type: 'bytes32', indexed: false }
     ]
+  },
+  {
+    name: 'escrowCount',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }]
+  },
+  {
+    name: 'platformFeeBps',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }]
   }
 ];
 
@@ -332,6 +347,14 @@ module.exports = {
   prepareStoryRegistration,
   prepareEscrowTransaction,
   generateOnChainProof,
+  // On-chain interaction
+  getEscrowContract,
+  createEscrowOnChain,
+  getEscrowOnChain,
+  getEscrowsByUser,
+  getEscrowByAgreementHash,
+  getContractStatus,
+  // Constants
   ESCROW_ABI,
   STORY_CONTRACTS,
   STORY_RPC,
@@ -339,3 +362,229 @@ module.exports = {
   ESCROW_CURRENCIES,
   ESCROW_RULE_PRESETS
 };
+
+// ════════════════════════════════════════════════════════
+//  ON-CHAIN INTERACTION (Real Contract Calls)
+// ════════════════════════════════════════════════════════
+
+// Hardhat account #0 private key (for local/testnet server-side operations)
+const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
+/**
+ * Get a connected ethers.js Contract instance.
+ * Uses the DEPLOYER_KEY for write operations (server-side arbiter/platform actions).
+ * @param {boolean} readOnly - if true, returns a read-only contract (no signer)
+ */
+function getEscrowContract(readOnly = false) {
+  if (!ESCROW_CONTRACT) {
+    return null; // No contract deployed
+  }
+  
+  try {
+    const provider = new ethers.JsonRpcProvider(ESCROW_RPC);
+    if (readOnly) {
+      return new ethers.Contract(ESCROW_CONTRACT, ESCROW_ABI, provider);
+    }
+    const wallet = new ethers.Wallet(DEPLOYER_KEY, provider);
+    return new ethers.Contract(ESCROW_CONTRACT, ESCROW_ABI, wallet);
+  } catch (e) {
+    console.error('[blockchain] Failed to connect to contract:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Create an escrow on-chain using the server's wallet.
+ * This is for server-managed escrows (both parties deposit via the platform).
+ */
+async function createEscrowOnChain(escrowData) {
+  const contract = getEscrowContract();
+  if (!contract) {
+    return { success: false, error: 'No escrow contract configured', simulated: true };
+  }
+
+  try {
+    const {
+      type = 'Sale',
+      partyB,
+      arbiter,
+      currency = 'ETH',
+      amount,
+      agreementHash,
+      agreementId,
+      metadata = {}
+    } = escrowData;
+
+    const escrowTypes = { Sale: 0, Bet: 1, Service: 2, Custom: 3 };
+    const currencyInfo = ESCROW_CURRENCIES[currency] || ESCROW_CURRENCIES.ETH;
+    const tokenAddress = currencyInfo.address || ethers.ZeroAddress;
+    const amountWei = ethers.parseUnits(String(amount), currencyInfo.decimals || 18);
+
+    // Build the agreement hash as bytes32
+    const hashBytes = agreementHash.startsWith('0x') ? agreementHash : `0x${agreementHash}`;
+    
+    const tx = await contract.createEscrow(
+      escrowTypes[type] || 3,
+      partyB,
+      arbiter || await contract.runner.getAddress(), // platform as arbiter if none
+      tokenAddress,
+      amountWei,
+      hashBytes,
+      agreementId,
+      JSON.stringify({ ...metadata, currency }),
+      { value: tokenAddress === ethers.ZeroAddress ? amountWei : 0n }
+    );
+
+    const receipt = await tx.wait();
+    
+    // Parse EscrowCreated event
+    const event = receipt.logs.find(l => {
+      try {
+        return contract.interface.parseLog(l)?.name === 'EscrowCreated';
+      } catch { return false; }
+    });
+    const parsedEvent = event ? contract.interface.parseLog(event) : null;
+    const escrowId = parsedEvent ? parsedEvent.args[0].toString() : null;
+
+    return {
+      success: true,
+      simulated: false,
+      txHash: receipt.hash,
+      escrowId,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString(),
+      contract: ESCROW_CONTRACT,
+      network: `Chain ${process.env.ESCROW_CHAIN_ID || '31337'}`,
+      explorerUrl: getExplorerUrl(receipt.hash)
+    };
+  } catch (e) {
+    console.error('[blockchain] createEscrowOnChain error:', e.message);
+    return { success: false, error: e.message, simulated: true };
+  }
+}
+
+/**
+ * Read an escrow's full state from the chain.
+ */
+async function getEscrowOnChain(escrowId) {
+  const contract = getEscrowContract(true);
+  if (!contract) {
+    return { success: false, error: 'No escrow contract configured' };
+  }
+
+  try {
+    const raw = await contract.getEscrow(escrowId);
+    const stateNames = ['Created', 'Funded', 'Disputed', 'Resolved', 'Released', 'Refunded', 'Cancelled'];
+    const typeNames = ['Sale', 'Bet', 'Service', 'Custom'];
+
+    return {
+      success: true,
+      escrow: {
+        id: raw.id.toString(),
+        escrowType: typeNames[Number(raw.escrowType)] || 'Custom',
+        state: stateNames[Number(raw.state)] || 'Unknown',
+        stateCode: Number(raw.state),
+        partyA: raw.partyA,
+        partyB: raw.partyB,
+        arbiter: raw.arbiter,
+        token: raw.token,
+        amount: ethers.formatEther(raw.amount),
+        amountWei: raw.amount.toString(),
+        partyADeposit: ethers.formatEther(raw.partyADeposit),
+        partyBDeposit: ethers.formatEther(raw.partyBDeposit),
+        agreementHash: raw.agreementHash,
+        agreementId: raw.agreementId,
+        partyAApproved: raw.partyAApproved,
+        partyBApproved: raw.partyBApproved,
+        releaseTo: raw.releaseTo,
+        createdAt: new Date(Number(raw.createdAt) * 1000).toISOString(),
+        resolvedAt: Number(raw.resolvedAt) > 0 ? new Date(Number(raw.resolvedAt) * 1000).toISOString() : null,
+        metadata: raw.metadata
+      }
+    };
+  } catch (e) {
+    console.error('[blockchain] getEscrowOnChain error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Get all escrow IDs for a user address.
+ */
+async function getEscrowsByUser(userAddress) {
+  const contract = getEscrowContract(true);
+  if (!contract) return { success: false, error: 'No escrow contract configured' };
+
+  try {
+    const ids = await contract.getUserEscrows(userAddress);
+    return { success: true, escrowIds: ids.map(id => id.toString()) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Look up an escrow by agreement hash.
+ */
+async function getEscrowByAgreementHash(agreementHash) {
+  const contract = getEscrowContract(true);
+  if (!contract) return { success: false, error: 'No escrow contract configured' };
+
+  try {
+    const hashBytes = agreementHash.startsWith('0x') ? agreementHash : `0x${agreementHash}`;
+    const raw = await contract.getEscrowByAgreement(hashBytes);
+    return {
+      success: true,
+      escrow: {
+        id: raw.id.toString(),
+        escrowType: Number(raw.escrowType),
+        state: Number(raw.state),
+        partyA: raw.partyA,
+        partyB: raw.partyB,
+        amount: ethers.formatEther(raw.amount)
+      }
+    };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Check if the contract is reachable and return basic status.
+ */
+async function getContractStatus() {
+  if (!ESCROW_CONTRACT) {
+    return { configured: false, address: null, message: 'No escrow contract address set' };
+  }
+  
+  try {
+    const provider = new ethers.JsonRpcProvider(ESCROW_RPC);
+    const code = await provider.getCode(ESCROW_CONTRACT);
+    const contract = new ethers.Contract(ESCROW_CONTRACT, ESCROW_ABI, provider);
+    const count = await contract.escrowCount();
+    
+    return {
+      configured: true,
+      address: ESCROW_CONTRACT,
+      rpc: ESCROW_RPC,
+      chainId: process.env.ESCROW_CHAIN_ID || '31337',
+      hasCode: code !== '0x',
+      escrowCount: count.toString(),
+      live: true
+    };
+  } catch (e) {
+    return {
+      configured: true,
+      address: ESCROW_CONTRACT,
+      live: false,
+      error: e.message
+    };
+  }
+}
+
+function getExplorerUrl(txHash) {
+  const chainId = process.env.ESCROW_CHAIN_ID || '31337';
+  if (chainId === '8453') return `https://basescan.org/tx/${txHash}`;
+  if (chainId === '84532') return `https://sepolia.basescan.org/tx/${txHash}`;
+  return null; // local network has no explorer
+}

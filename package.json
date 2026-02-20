@@ -30,5 +30,10 @@
     "institutional"
   ],
   "author": "Illuminaticonsulting",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.4.0",
+    "hardhat": "^2.28.6"
+  }
 }
