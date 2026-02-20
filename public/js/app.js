@@ -79,7 +79,8 @@
   }
 
   // Auth Tabs
-  var socialLogin = document.querySelector('.social-divider-wrap:not([id])') || document.querySelectorAll('.social-divider')[0]?.parentElement;
+  var socialDividerLogin = document.getElementById('social-divider-login');
+  var socialButtonsLogin = document.getElementById('social-buttons-login');
   var socialRegister = document.getElementById('social-buttons-register');
   document.querySelectorAll('.auth-tab').forEach(function(tab) {
     tab.addEventListener('click', function() {
@@ -88,12 +89,9 @@
       tab.classList.add('active');
       loginForm.style.display = authMode === 'login' ? 'block' : 'none';
       registerForm.style.display = authMode === 'register' ? 'block' : 'none';
-      // Toggle social buttons
-      var loginSocial = loginForm.nextElementSibling;
-      if (loginSocial && loginSocial.classList.contains('social-divider')) {
-        loginSocial.style.display = authMode === 'login' ? 'block' : 'none';
-        loginSocial.nextElementSibling.style.display = authMode === 'login' ? 'flex' : 'none';
-      }
+      // Toggle social buttons by ID
+      if (socialDividerLogin) socialDividerLogin.style.display = authMode === 'login' ? 'block' : 'none';
+      if (socialButtonsLogin) socialButtonsLogin.style.display = authMode === 'login' ? 'flex' : 'none';
       if (socialRegister) socialRegister.style.display = authMode === 'register' ? 'block' : 'none';
       loginError.style.display = 'none';
     });

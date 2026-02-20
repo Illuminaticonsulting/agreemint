@@ -42,6 +42,12 @@ const { AUDIT_CATEGORIES, SEVERITY, AUDIT_ACTIONS, COMPLIANCE_CHECKLIST, RETENTI
 let rateLimit;
 try { rateLimit = require('express-rate-limit'); } catch(e) { console.warn('express-rate-limit not installed, rate limiting disabled'); }
 
+// ── OAuth Dependencies (optional) ──
+let axios;
+try { axios = require('axios'); } catch(e) { console.warn('axios not installed — social login HTTP calls disabled'); }
+let jwt;
+try { jwt = require('jsonwebtoken'); } catch(e) { console.warn('jsonwebtoken not installed — Apple Sign In disabled'); }
+
 const app = express();
 const PORT = process.env.PORT || 3500;
 const PLATFORM = process.env.PLATFORM_NAME || 'AgreeMint';
@@ -433,6 +439,7 @@ const oauthStates = {};
 
 // ---- Google OAuth ----
 app.get('/api/auth/google', (req, res) => {
+  if (!axios) return socialAuthError(res, 'Social login unavailable — axios package not installed on server');
   if (!OAUTH.google.clientId) return socialAuthError(res, 'Google login not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env');
   const state = uuidv4();
   oauthStates[state] = { provider: 'google', ts: Date.now() };
@@ -486,6 +493,8 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
 // ---- Apple OAuth ----
 app.get('/api/auth/apple', (req, res) => {
+  if (!axios) return socialAuthError(res, 'Social login unavailable — axios package not installed on server');
+  if (!jwt) return socialAuthError(res, 'Apple login unavailable — jsonwebtoken package not installed on server');
   if (!OAUTH.apple.clientId) return socialAuthError(res, 'Apple login not configured. Set APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY in .env');
   const state = uuidv4();
   oauthStates[state] = { provider: 'apple', ts: Date.now() };
@@ -507,7 +516,6 @@ app.post('/api/auth/apple/callback', express.urlencoded({ extended: true }), asy
     delete oauthStates[state];
 
     // Generate Apple client secret JWT
-    const jwt = require('jsonwebtoken');
     const clientSecret = jwt.sign({}, OAUTH.apple.privateKey, {
       algorithm: 'ES256',
       expiresIn: '5m',
@@ -550,6 +558,7 @@ app.post('/api/auth/apple/callback', express.urlencoded({ extended: true }), asy
 
 // ---- X/Twitter OAuth 2.0 (PKCE) ----
 app.get('/api/auth/twitter', (req, res) => {
+  if (!axios) return socialAuthError(res, 'Social login unavailable — axios package not installed on server');
   if (!OAUTH.twitter.clientId) return socialAuthError(res, 'X/Twitter login not configured. Set TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET in .env');
   const state = uuidv4();
   // PKCE challenge
