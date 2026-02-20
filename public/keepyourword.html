@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Keep Your Word - On-Chain Social Reputation</title>
-  <meta name="description" content="Make public pledges, build your on-chain reputation score. Free forever. Powered by AgreeMint.">
+  <meta name="description" content="Make public pledges, build your on-chain reputation score. Self-accountability or mutual agreements. Free forever.">
   <meta property="og:title" content="Keep Your Word - Social Score">
-  <meta property="og:description" content="Make public commitments. Build trust. Get rated. On-chain and transparent.">
+  <meta property="og:description" content="Make commitments to yourself or others. GPS-verified check-ins. Build trust. On-chain and transparent.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -31,6 +31,8 @@
       --purple-dim: rgba(139,92,246,0.15);
       --blue: #3b82f6;
       --blue-dim: rgba(59,130,246,0.15);
+      --orange: #f97316;
+      --orange-dim: rgba(249,115,22,0.15);
       --accent: #fbbf24;
       --font: 'Inter', -apple-system, system-ui, sans-serif;
       --radius: 16px;
@@ -41,18 +43,12 @@
     a { color:var(--gold); text-decoration:none; }
     a:hover { text-decoration:underline; }
 
-    /* ─── Header ─── */
     .kyw-header {
       background: linear-gradient(135deg, var(--bg2) 0%, #0d0d2a 50%, #151530 100%);
       border-bottom: 1px solid var(--border);
       padding: 16px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      backdrop-filter: blur(20px);
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(20px);
     }
     .kyw-logo { display:flex; align-items:center; gap:12px; }
     .kyw-logo-icon { font-size:28px; }
@@ -62,10 +58,7 @@
     .kyw-user-info { display:flex; align-items:center; gap:8px; padding:6px 14px; background:var(--bg3); border-radius:var(--radius-sm); border:1px solid var(--border); }
     .kyw-user-avatar { width:28px; height:28px; border-radius:50%; background:var(--gold-dim); display:flex; align-items:center; justify-content:center; font-size:14px; }
     .kyw-user-handle { font-size:13px; font-weight:600; }
-    .kyw-score-badge {
-      display:inline-flex; align-items:center; gap:4px; padding:4px 10px;
-      border-radius:20px; font-size:12px; font-weight:700;
-    }
+    .kyw-score-badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:700; }
     .score-DIAMOND { background:linear-gradient(135deg,#a855f7,#6366f1); color:#fff; }
     .score-GOLD { background:linear-gradient(135deg,var(--gold),#f59e0b); color:#000; }
     .score-SILVER { background:linear-gradient(135deg,#9ca3af,#6b7280); color:#fff; }
@@ -73,7 +66,6 @@
     .score-NEW, .score-PENDING { background:var(--bg4); color:var(--text2); border:1px solid var(--border); }
     .score-UNTRUSTWORTHY { background:var(--red-dim); color:var(--red); }
 
-    /* ─── Buttons ─── */
     .btn { padding:10px 20px; border:none; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font); font-size:14px; font-weight:600; transition:all 0.2s; display:inline-flex; align-items:center; gap:8px; }
     .btn-gold { background:linear-gradient(135deg,var(--gold),#f59e0b); color:#000; }
     .btn-gold:hover { transform:translateY(-1px); box-shadow:0 4px 20px rgba(251,191,36,0.3); }
@@ -81,14 +73,12 @@
     .btn-outline:hover { border-color:var(--gold); color:var(--gold); }
     .btn-green { background:var(--green); color:#fff; }
     .btn-red { background:var(--red); color:#fff; }
+    .btn-blue { background:var(--blue); color:#fff; }
     .btn-sm { padding:6px 14px; font-size:12px; }
+    .btn-orange { background:var(--orange); color:#fff; }
+    .btn:disabled { opacity:0.5; cursor:not-allowed; }
 
-    /* ─── Hero ─── */
-    .kyw-hero {
-      text-align:center;
-      padding:80px 24px 60px;
-      background:radial-gradient(ellipse at top, rgba(251,191,36,0.08) 0%, transparent 60%);
-    }
+    .kyw-hero { text-align:center; padding:80px 24px 60px; background:radial-gradient(ellipse at top, rgba(251,191,36,0.08) 0%, transparent 60%); }
     .kyw-hero h2 { font-size:48px; font-weight:900; line-height:1.1; margin-bottom:16px; }
     .kyw-hero h2 span { background:linear-gradient(135deg,var(--gold),#f59e0b,#fde68a); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .kyw-hero p { font-size:18px; color:var(--text2); max-width:600px; margin:0 auto 32px; line-height:1.6; }
@@ -97,45 +87,25 @@
     .hero-stat-value { font-size:32px; font-weight:800; color:var(--gold); }
     .hero-stat-label { font-size:12px; color:var(--text3); margin-top:4px; text-transform:uppercase; letter-spacing:1px; }
 
-    /* ─── Container ─── */
     .kyw-container { max-width:1100px; margin:0 auto; padding:0 24px; }
 
-    /* ─── Login Screen ─── */
     .kyw-login-screen { min-height:100vh; }
     .social-login-box { max-width:440px; margin:0 auto; }
-    .social-btn {
-      width:100%; padding:14px 20px; border:1px solid var(--border); border-radius:var(--radius-sm);
-      background:var(--bg3); color:var(--text); font-size:15px; font-weight:600; cursor:pointer;
-      display:flex; align-items:center; gap:14px; margin-bottom:12px; transition:all 0.2s; font-family:var(--font);
-    }
+    .social-btn { width:100%; padding:14px 20px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg3); color:var(--text); font-size:15px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:14px; margin-bottom:12px; transition:all 0.2s; font-family:var(--font); }
     .social-btn:hover { border-color:var(--gold); background:var(--bg4); transform:translateY(-1px); }
     .social-btn-icon { font-size:22px; width:32px; text-align:center; }
-    .social-divider { text-align:center; color:var(--text3); font-size:13px; margin:24px 0; position:relative; }
-    .social-divider::before, .social-divider::after { content:''; position:absolute; top:50%; width:40%; height:1px; background:var(--border); }
-    .social-divider::before { left:0; }
-    .social-divider::after { right:0; }
     .social-handle-input { width:100%; padding:14px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:14px; font-family:var(--font); margin-top:12px; }
     .social-handle-input:focus { outline:none; border-color:var(--gold); }
     .social-handle-input::placeholder { color:var(--text3); }
 
-    /* ─── App Screen ─── */
     .kyw-app { display:none; }
-
-    /* ─── Tabs ─── */
-    .kyw-tabs { display:flex; gap:4px; padding:4px; background:var(--bg2); border-radius:var(--radius-sm); margin-bottom:32px; border:1px solid var(--border); }
-    .kyw-tab { flex:1; padding:12px; background:transparent; border:none; color:var(--text3); font-family:var(--font); font-size:14px; font-weight:600; cursor:pointer; border-radius:8px; transition:all 0.2s; }
+    .kyw-tabs { display:flex; gap:4px; padding:4px; background:var(--bg2); border-radius:var(--radius-sm); margin-bottom:32px; border:1px solid var(--border); overflow-x:auto; }
+    .kyw-tab { flex:1; padding:12px 8px; background:transparent; border:none; color:var(--text3); font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; border-radius:8px; transition:all 0.2s; white-space:nowrap; min-width:0; }
     .kyw-tab.active { background:var(--bg4); color:var(--gold); }
     .kyw-tab:hover:not(.active) { color:var(--text2); }
+    .kyw-tab .tab-badge { background:var(--red); color:#fff; font-size:10px; padding:2px 6px; border-radius:10px; margin-left:4px; }
 
-    /* ─── Pledge Card ─── */
-    .pledge-card {
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      padding:24px;
-      margin-bottom:16px;
-      transition:all 0.2s;
-    }
+    .pledge-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:16px; transition:all 0.2s; }
     .pledge-card:hover { border-color:var(--gold); transform:translateY(-1px); }
     .pledge-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:12px; }
     .pledge-user { display:flex; align-items:center; gap:10px; }
@@ -148,54 +118,61 @@
     .pledge-status.broken { background:var(--red-dim); color:var(--red); }
     .pledge-title { font-size:18px; font-weight:700; margin-bottom:8px; }
     .pledge-description { font-size:14px; color:var(--text2); line-height:1.6; margin-bottom:16px; }
-    .pledge-meta { display:flex; gap:20px; font-size:12px; color:var(--text3); flex-wrap:wrap; }
+    .pledge-meta { display:flex; gap:16px; font-size:12px; color:var(--text3); flex-wrap:wrap; }
     .pledge-meta-item { display:flex; align-items:center; gap:4px; }
-    .pledge-actions { display:flex; gap:8px; margin-top:16px; }
+    .pledge-actions { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
     .pledge-reactions { display:flex; gap:12px; margin-top:12px; }
-    .pledge-reaction {
-      display:flex; align-items:center; gap:4px; padding:4px 12px; border-radius:20px;
-      background:var(--bg3); border:1px solid var(--border); cursor:pointer; font-size:12px; color:var(--text2);
-      transition:all 0.2s;
-    }
+    .pledge-reaction { display:flex; align-items:center; gap:4px; padding:4px 12px; border-radius:20px; background:var(--bg3); border:1px solid var(--border); cursor:pointer; font-size:12px; color:var(--text2); transition:all 0.2s; }
     .pledge-reaction:hover { border-color:var(--gold); color:var(--gold); }
     .pledge-hash { font-size:11px; color:var(--text3); font-family:monospace; margin-top:8px; word-break:break-all; }
 
-    /* ─── Create Pledge Form ─── */
+    .mode-badge { font-size:11px; font-weight:700; padding:3px 10px; border-radius:12px; margin-left:8px; }
+    .mode-self { background:var(--purple-dim); color:var(--purple); }
+    .mode-mutual { background:var(--orange-dim); color:var(--orange); }
+
+    .streak-bar { margin-top:12px; }
+    .streak-bar-label { font-size:12px; color:var(--text3); margin-bottom:6px; display:flex; justify-content:space-between; }
+    .streak-bar-track { height:8px; background:var(--bg3); border-radius:4px; overflow:hidden; }
+    .streak-bar-fill { height:100%; background:linear-gradient(90deg, var(--green), var(--gold)); border-radius:4px; transition:width 0.5s ease; }
+    .streak-fire { color:var(--orange); font-weight:800; }
+    .checkin-dots { display:flex; gap:3px; margin-top:8px; flex-wrap:wrap; }
+    .checkin-dot { width:14px; height:14px; border-radius:3px; }
+    .checkin-dot.verified { background:var(--green); }
+    .checkin-dot.failed { background:var(--red); }
+    .checkin-dot.empty { background:var(--bg3); border:1px solid var(--border); }
+
     .create-pledge-form { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:32px; }
     .form-group { margin-bottom:20px; }
     .form-group label { display:block; font-size:13px; font-weight:600; color:var(--text2); margin-bottom:8px; }
-    .form-input, .form-select, .form-textarea {
-      width:100%; padding:12px 16px; background:var(--bg2); border:1px solid var(--border);
-      border-radius:var(--radius-sm); color:var(--text); font-size:14px; font-family:var(--font);
-    }
+    .form-input, .form-select, .form-textarea { width:100%; padding:12px 16px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:14px; font-family:var(--font); }
     .form-input:focus, .form-select:focus, .form-textarea:focus { outline:none; border-color:var(--gold); }
     .form-textarea { resize:vertical; min-height:100px; }
     .form-select { cursor:pointer; }
     .form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
     .form-hint { font-size:11px; color:var(--text3); margin-top:4px; }
 
-    /* ─── Score Card ─── */
-    .score-card {
-      background:linear-gradient(135deg, var(--bg3) 0%, var(--bg4) 100%);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      padding:32px;
-      text-align:center;
-      margin-bottom:32px;
-    }
+    .mode-toggle { display:flex; gap:0; margin-bottom:24px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+    .mode-toggle-btn { flex:1; padding:14px; border:none; background:var(--bg3); color:var(--text3); font-family:var(--font); font-size:14px; font-weight:600; cursor:pointer; transition:all 0.2s; text-align:center; }
+    .mode-toggle-btn.active { background:var(--gold-dim); color:var(--gold); border-bottom:2px solid var(--gold); }
+    .mode-toggle-btn:hover:not(.active) { color:var(--text2); }
+
+    .template-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px; margin-bottom:24px; }
+    .template-card { padding:16px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; transition:all 0.2s; text-align:center; }
+    .template-card:hover { border-color:var(--gold); transform:translateY(-2px); }
+    .template-card.selected { border-color:var(--gold); background:var(--gold-dim); }
+    .template-card-icon { font-size:28px; margin-bottom:8px; }
+    .template-card-name { font-size:13px; font-weight:600; }
+    .template-card-desc { font-size:11px; color:var(--text3); margin-top:4px; }
+
+    .score-card { background:linear-gradient(135deg, var(--bg3) 0%, var(--bg4) 100%); border:1px solid var(--border); border-radius:var(--radius); padding:32px; text-align:center; margin-bottom:32px; }
     .score-number { font-size:72px; font-weight:900; background:linear-gradient(135deg,var(--gold),#fde68a); -webkit-background-clip:text; -webkit-text-fill-color:transparent; line-height:1; }
     .score-grade { font-size:24px; font-weight:800; margin-top:8px; }
-    .score-breakdown { display:flex; justify-content:center; gap:32px; margin-top:24px; }
+    .score-breakdown { display:flex; justify-content:center; gap:24px; margin-top:24px; flex-wrap:wrap; }
     .score-stat { text-align:center; }
     .score-stat-value { font-size:24px; font-weight:700; }
     .score-stat-label { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
 
-    /* ─── Leaderboard ─── */
-    .lb-row {
-      display:flex; align-items:center; gap:16px; padding:16px 20px;
-      background:var(--card); border:1px solid var(--border); border-radius:var(--radius-sm);
-      margin-bottom:8px; transition:all 0.2s;
-    }
+    .lb-row { display:flex; align-items:center; gap:16px; padding:16px 20px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:8px; transition:all 0.2s; }
     .lb-row:hover { border-color:var(--gold); }
     .lb-rank { font-size:20px; font-weight:800; min-width:40px; text-align:center; color:var(--gold); }
     .lb-rank.top3 { font-size:24px; }
@@ -206,67 +183,60 @@
     .lb-score-value { font-size:24px; font-weight:800; color:var(--gold); }
     .lb-score-grade { font-size:11px; font-weight:700; }
 
-    /* ─── Footer ─── */
-    .kyw-footer {
-      text-align:center; padding:40px 24px; margin-top:60px;
-      border-top:1px solid var(--border); font-size:13px; color:var(--text3);
-    }
+    .kyw-footer { text-align:center; padding:40px 24px; margin-top:60px; border-top:1px solid var(--border); font-size:13px; color:var(--text3); }
     .kyw-footer a { color:var(--gold); }
-
-    /* ─── Empty State ─── */
     .empty-state { text-align:center; padding:60px 24px; color:var(--text3); }
     .empty-icon { font-size:48px; margin-bottom:16px; }
-
-    /* ─── Spinner ─── */
     .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.6s linear infinite; display:inline-block; }
     @keyframes spin { to { transform:rotate(360deg); } }
-
-    /* ─── Category Chips ─── */
     .category-chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px; }
-    .category-chip {
-      padding:6px 16px; border-radius:20px; background:var(--bg3); border:1px solid var(--border);
-      color:var(--text2); font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s;
-    }
+    .category-chip { padding:6px 16px; border-radius:20px; background:var(--bg3); border:1px solid var(--border); color:var(--text2); font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; }
     .category-chip.active { background:var(--gold-dim); border-color:var(--gold); color:var(--gold); }
     .category-chip:hover:not(.active) { border-color:var(--text3); }
 
-    /* Responsive */
-    @media (max-width:768px) {
-      .kyw-hero h2 { font-size:32px; }
-      .hero-stats { flex-wrap:wrap; gap:20px; }
-      .kyw-tabs { flex-wrap:wrap; }
-      .form-row { grid-template-columns:1fr; }
-      .score-breakdown { flex-wrap:wrap; gap:16px; }
-    }
-
-    /* ─── Toast ─── */
     .kyw-toast-container { position:fixed; top:20px; right:20px; z-index:9999; }
     .kyw-toast { padding:12px 20px; border-radius:var(--radius-sm); margin-bottom:8px; font-size:13px; font-weight:500; animation:slideIn 0.3s ease; }
     .kyw-toast-success { background:var(--green); color:#fff; }
     .kyw-toast-error { background:var(--red); color:#fff; }
     @keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+
+    .pending-banner { background:var(--orange-dim); border:1px solid var(--orange); border-radius:var(--radius-sm); padding:12px 20px; margin-bottom:16px; font-size:13px; color:var(--orange); display:flex; align-items:center; gap:8px; }
+
+    @media (max-width:768px) {
+      .kyw-hero h2 { font-size:32px; }
+      .hero-stats { flex-wrap:wrap; gap:20px; }
+      .kyw-tabs { flex-wrap:nowrap; overflow-x:auto; }
+      .form-row { grid-template-columns:1fr; }
+      .score-breakdown { gap:16px; }
+      .template-grid { grid-template-columns:repeat(2, 1fr); }
+      .kyw-header { flex-wrap:wrap; gap:8px; }
+      .how-grid { grid-template-columns:repeat(2, 1fr); }
+      .modes-grid { grid-template-columns:1fr !important; }
+    }
+    @media (max-width:480px) { .how-grid { grid-template-columns:1fr; } }
+
+    .how-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; }
+    .how-card { text-align:center; padding:32px 20px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); }
+    .how-card-icon { font-size:36px; margin-bottom:12px; }
+    .how-card h3 { margin-bottom:8px; font-size:16px; }
+    .how-card p { font-size:13px; color:var(--text2); }
   </style>
 </head>
 <body>
 
-  <!-- ═══════════════════════════════════════════════
-       LOGIN SCREEN
-  ═══════════════════════════════════════════════ -->
+  <!-- ═══════ LOGIN SCREEN ═══════ -->
   <div id="kyw-login-screen" class="kyw-login-screen">
     <header class="kyw-header">
       <div class="kyw-logo">
         <span class="kyw-logo-icon">&#129309;</span>
-        <div>
-          <h1>Keep Your Word</h1>
-          <small>by AgreeMint</small>
-        </div>
+        <div><h1>Keep Your Word</h1><small>by AgreeMint</small></div>
       </div>
       <a href="/" style="font-size:13px;color:var(--text3);">&#9878; AgreeMint Platform &rarr;</a>
     </header>
 
     <div class="kyw-hero">
-      <h2>Make Promises.<br><span>Keep Your Word.</span><br>Build Trust.</h2>
-      <p>The world's first on-chain social reputation system. Make public commitments, stake crypto on your promises, and build a verifiable trust score anyone can check.</p>
+      <h2>Keep Your Word.<br><span>Build Trust.</span><br>Prove It.</h2>
+      <p>Make promises to yourself or others. Verify with GPS, photos, or peer confirmation. Build an on-chain reputation score anyone can check.</p>
       <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
         <button class="btn btn-gold" onclick="document.getElementById('social-login-section').scrollIntoView({behavior:'smooth'})">Get Started - Free Forever</button>
         <button class="btn btn-outline" onclick="document.getElementById('how-it-works').scrollIntoView({behavior:'smooth'})">How It Works</button>
@@ -278,70 +248,52 @@
       </div>
     </div>
 
-    <!-- How It Works -->
-    <div id="how-it-works" class="kyw-container" style="padding-top:60px;padding-bottom:60px;">
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;">
-        <div style="text-align:center;padding:32px 20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);">
-          <div style="font-size:36px;margin-bottom:12px;">&#128100;</div>
-          <h3 style="margin-bottom:8px;font-size:16px;">1. Sign In</h3>
-          <p style="font-size:13px;color:var(--text2);">Connect your X, Instagram, or social account to prove you're human</p>
+    <!-- Two Modes Explainer -->
+    <div class="kyw-container" style="padding-top:40px;padding-bottom:20px;">
+      <div class="modes-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div style="padding:32px;background:var(--card);border:1px solid var(--purple);border-radius:var(--radius);">
+          <div style="font-size:32px;margin-bottom:12px;">&#127919;</div>
+          <h3 style="margin-bottom:8px;font-size:18px;color:var(--purple);">Self-Pledge</h3>
+          <p style="font-size:14px;color:var(--text2);line-height:1.6;">Commit to personal goals &#8212; gym, reading, diet, waking up early. Verify with GPS location tracking, timed check-ins, photo proof, or daily streaks. Build your score by keeping promises to yourself.</p>
+          <div style="margin-top:16px;font-size:12px;color:var(--text3);">&#128205; GPS verified &#8226; &#9200; Time-stamped &#8226; &#128247; Photo proof &#8226; &#128293; Streak tracking</div>
         </div>
-        <div style="text-align:center;padding:32px 20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);">
-          <div style="font-size:36px;margin-bottom:12px;">&#129309;</div>
-          <h3 style="margin-bottom:8px;font-size:16px;">2. Make a Pledge</h3>
-          <p style="font-size:13px;color:var(--text2);">Public promise, bet, or commitment. Optionally stake crypto on it.</p>
-        </div>
-        <div style="text-align:center;padding:32px 20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);">
-          <div style="font-size:36px;margin-bottom:12px;">&#9939;</div>
-          <h3 style="margin-bottom:8px;font-size:16px;">3. Hash On-Chain</h3>
-          <p style="font-size:13px;color:var(--text2);">Your pledge is SHA-256 hashed and anchored to the blockchain. Immutable.</p>
-        </div>
-        <div style="text-align:center;padding:32px 20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);">
-          <div style="font-size:36px;margin-bottom:12px;">&#127942;</div>
-          <h3 style="margin-bottom:8px;font-size:16px;">4. Score Builds</h3>
-          <p style="font-size:13px;color:var(--text2);">Keep promises = score rises. Break them = score drops. Transparent forever.</p>
+        <div style="padding:32px;background:var(--card);border:1px solid var(--orange);border-radius:var(--radius);">
+          <div style="font-size:32px;margin-bottom:12px;">&#129309;</div>
+          <h3 style="margin-bottom:8px;font-size:18px;color:var(--orange);">Mutual Pledge</h3>
+          <p style="font-size:14px;color:var(--text2);line-height:1.6;">Make a promise to another person. They accept the pledge and confirm whether you kept your word. Both parties build trust scores through accountability to each other.</p>
+          <div style="margin-top:16px;font-size:12px;color:var(--text3);">&#128101; Counterparty confirms &#8226; &#9939; On-chain hash &#8226; &#127942; Both build score</div>
         </div>
       </div>
     </div>
 
-    <!-- Sign In Section -->
+    <!-- How It Works -->
+    <div id="how-it-works" class="kyw-container" style="padding-top:40px;padding-bottom:60px;">
+      <div class="how-grid">
+        <div class="how-card"><div class="how-card-icon">&#128100;</div><h3>1. Sign In</h3><p>Connect your social account to prove you're human</p></div>
+        <div class="how-card"><div class="how-card-icon">&#127919;</div><h3>2. Make a Pledge</h3><p>Self-goal or mutual promise. Pick a template or create custom.</p></div>
+        <div class="how-card"><div class="how-card-icon">&#128205;</div><h3>3. Verify</h3><p>GPS check-in, photo proof, timed stamp, or peer confirmation.</p></div>
+        <div class="how-card"><div class="how-card-icon">&#127942;</div><h3>4. Score Builds</h3><p>Keep promises = score rises. Streaks multiply your reputation.</p></div>
+      </div>
+    </div>
+
+    <!-- Sign In -->
     <div id="social-login-section" class="kyw-container" style="padding-bottom:80px;">
       <div class="social-login-box">
         <h2 style="text-align:center;font-size:24px;margin-bottom:8px;">Sign In With Social Media</h2>
-        <p style="text-align:center;color:var(--text2);font-size:14px;margin-bottom:32px;">We verify you're human through your social account. No passwords needed.</p>
-
+        <p style="text-align:center;color:var(--text2);font-size:14px;margin-bottom:32px;">We verify you're human through your social account.</p>
         <div id="social-provider-select">
-          <button class="social-btn" onclick="selectProvider('twitter')">
-            <span class="social-btn-icon">&#120143;</span>
-            <span>Continue with X (Twitter)</span>
-          </button>
-          <button class="social-btn" onclick="selectProvider('instagram')">
-            <span class="social-btn-icon">&#128247;</span>
-            <span>Continue with Instagram</span>
-          </button>
-          <button class="social-btn" onclick="selectProvider('google')">
-            <span class="social-btn-icon">G</span>
-            <span>Continue with Google</span>
-          </button>
-          <button class="social-btn" onclick="selectProvider('github')">
-            <span class="social-btn-icon">&#128736;</span>
-            <span>Continue with GitHub</span>
-          </button>
+          <button class="social-btn" onclick="selectProvider('twitter')"><span class="social-btn-icon">&#120143;</span><span>Continue with X (Twitter)</span></button>
+          <button class="social-btn" onclick="selectProvider('instagram')"><span class="social-btn-icon">&#128247;</span><span>Continue with Instagram</span></button>
+          <button class="social-btn" onclick="selectProvider('google')"><span class="social-btn-icon">G</span><span>Continue with Google</span></button>
+          <button class="social-btn" onclick="selectProvider('github')"><span class="social-btn-icon">&#128736;</span><span>Continue with GitHub</span></button>
         </div>
-
         <div id="social-handle-form" style="display:none;">
           <div style="text-align:center;margin-bottom:20px;">
             <span id="selected-provider-icon" style="font-size:36px;"></span>
             <h3 id="selected-provider-name" style="margin-top:8px;"></h3>
           </div>
-          <div class="form-group">
-            <label>Your Handle / Username</label>
-            <input class="social-handle-input" id="social-handle" placeholder="@yourhandle">
-          </div>
-          <div class="form-group">
-            <label>Display Name (optional)</label>
-            <input class="social-handle-input" id="social-display-name" placeholder="Your Name">
-          </div>
+          <div class="form-group"><label>Your Handle / Username</label><input class="social-handle-input" id="social-handle" placeholder="@yourhandle"></div>
+          <div class="form-group"><label>Display Name (optional)</label><input class="social-handle-input" id="social-display-name" placeholder="Your Name"></div>
           <div style="display:flex;gap:12px;margin-top:16px;">
             <button class="btn btn-gold" style="flex:1;" onclick="socialLogin()">Sign In</button>
             <button class="btn btn-outline" onclick="backToProviders()">Back</button>
@@ -349,25 +301,18 @@
         </div>
       </div>
     </div>
-
     <div class="kyw-footer">
-      <p style="margin-bottom:8px;"><strong>Keep Your Word</strong> is a free product by <a href="/">AgreeMint</a></p>
-      <p>Need escrow, AI contracts, or blockchain verification? <a href="/">Try AgreeMint Platform &rarr;</a></p>
-      <p style="margin-top:12px;">Powered by <a href="https://kingpinstrategies.com" target="_blank">Kingpin Strategies</a></p>
+      <p style="margin-bottom:8px;"><strong>Keep Your Word</strong> by <a href="/">AgreeMint</a></p>
+      <p>Powered by <a href="https://kingpinstrategies.com" target="_blank">Kingpin Strategies</a></p>
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════
-       APP SCREEN
-  ═══════════════════════════════════════════════ -->
+  <!-- ═══════ APP SCREEN ═══════ -->
   <div id="kyw-app" class="kyw-app">
     <header class="kyw-header">
       <div class="kyw-logo">
         <span class="kyw-logo-icon">&#129309;</span>
-        <div>
-          <h1>Keep Your Word</h1>
-          <small>by AgreeMint</small>
-        </div>
+        <div><h1>Keep Your Word</h1><small>by AgreeMint</small></div>
       </div>
       <div class="kyw-header-right">
         <div class="kyw-user-info">
@@ -381,42 +326,42 @@
     </header>
 
     <div class="kyw-container" style="padding-top:32px;padding-bottom:60px;">
-      <!-- Score Card -->
       <div class="score-card" id="score-card"></div>
+      <div id="pending-banner-area"></div>
 
-      <!-- Tabs -->
       <div class="kyw-tabs">
-        <button class="kyw-tab active" data-tab="feed" onclick="switchTab('feed')">&#127760; Public Feed</button>
+        <button class="kyw-tab active" data-tab="feed" onclick="switchTab('feed')">&#127760; Feed</button>
         <button class="kyw-tab" data-tab="create" onclick="switchTab('create')">&#10010; New Pledge</button>
         <button class="kyw-tab" data-tab="my" onclick="switchTab('my')">&#128100; My Pledges</button>
+        <button class="kyw-tab" data-tab="pending" onclick="switchTab('pending')">&#128232; Requests <span class="tab-badge" id="pending-count" style="display:none;">0</span></button>
         <button class="kyw-tab" data-tab="leaderboard" onclick="switchTab('leaderboard')">&#127942; Leaderboard</button>
       </div>
 
-      <!-- Tab Content -->
       <div id="tab-content"></div>
     </div>
-
     <div class="kyw-footer">
       <p>&#129309; <strong>Keep Your Word</strong> by <a href="/">AgreeMint</a> | Powered by <a href="https://kingpinstrategies.com" target="_blank">Kingpin Strategies</a></p>
     </div>
   </div>
 
-  <!-- Toast -->
   <div class="kyw-toast-container" id="kyw-toast-container"></div>
 
 <script>
 (function(){
   'use strict';
 
-  // ─── State ─────────────────────────────────────
   let kywToken = localStorage.getItem('kyw_token');
   let kywUser = JSON.parse(localStorage.getItem('kyw_user') || 'null');
   let selectedProvider = null;
   let currentTab = 'feed';
   let feedCategory = null;
   let categories = [];
+  let templates = [];
+  let pendingCount = 0;
+  let createMode = 'self';
+  let selectedTemplate = null;
 
-  // ─── API ───────────────────────────────────────
+  // ─── API ───────────────────
   async function api(method, url, body) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (kywToken) opts.headers['x-auth-token'] = kywToken;
@@ -427,200 +372,228 @@
     return data;
   }
 
-  function kywToast(msg, type) {
-    const el = document.createElement('div');
+  function toast(msg, type) {
+    var el = document.createElement('div');
     el.className = 'kyw-toast kyw-toast-' + (type || 'success');
     el.textContent = msg;
     document.getElementById('kyw-toast-container').appendChild(el);
-    setTimeout(() => el.remove(), 4000);
+    setTimeout(function() { el.remove(); }, 4000);
   }
 
-  // ─── Init ──────────────────────────────────────
-  loadStats();
-  loadCategories();
-  if (kywToken && kywUser) {
-    showApp();
+  function esc(s) { return !s ? '' : s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function timeAgo(d) {
+    var s = Math.floor((Date.now() - new Date(d)) / 1000);
+    if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s/60)+'m ago';
+    if (s < 86400) return Math.floor(s/3600)+'h ago'; if (s < 604800) return Math.floor(s/86400)+'d ago';
+    return new Date(d).toLocaleDateString();
   }
+
+  // ─── Init ──────────────────
+  loadStats(); loadCategories(); loadTemplates();
+  if (kywToken && kywUser) showApp();
 
   async function loadStats() {
     try {
-      const stats = await api('GET', '/api/kyw/stats');
-      document.getElementById('stat-users').textContent = stats.totalUsers;
-      document.getElementById('stat-pledges').textContent = stats.totalPledges;
-      document.getElementById('stat-kept').textContent = stats.keptPledges;
+      var s = await api('GET', '/api/kyw/stats');
+      document.getElementById('stat-users').textContent = s.totalUsers;
+      document.getElementById('stat-pledges').textContent = s.totalPledges;
+      document.getElementById('stat-kept').textContent = s.keptPledges;
     } catch(e) {}
   }
+  async function loadCategories() { try { categories = await api('GET', '/api/kyw/categories'); } catch(e) {} }
+  async function loadTemplates() { try { templates = await api('GET', '/api/kyw/templates'); } catch(e) {} }
 
-  async function loadCategories() {
-    try {
-      categories = await api('GET', '/api/kyw/categories');
-    } catch(e) {}
-  }
-
-  // ─── Social Login ──────────────────────────────
-  window.selectProvider = function(provider) {
-    selectedProvider = provider;
-    const names = { twitter: 'X (Twitter)', instagram: 'Instagram', google: 'Google', github: 'GitHub' };
-    const icons = { twitter: '\u{1D54F}', instagram: '\u{1F4F7}', google: 'G', github: '\u{1F6E0}' };
-    document.getElementById('selected-provider-icon').textContent = icons[provider] || '?';
-    document.getElementById('selected-provider-name').textContent = names[provider] || provider;
+  // ─── Social Login ──────────
+  window.selectProvider = function(p) {
+    selectedProvider = p;
+    var names = { twitter:'X (Twitter)', instagram:'Instagram', google:'Google', github:'GitHub' };
+    var icons = { twitter:'\u{1D54F}', instagram:'\u{1F4F7}', google:'G', github:'\u{1F6E0}' };
+    document.getElementById('selected-provider-icon').textContent = icons[p]||'?';
+    document.getElementById('selected-provider-name').textContent = names[p]||p;
     document.getElementById('social-provider-select').style.display = 'none';
     document.getElementById('social-handle-form').style.display = 'block';
-    document.getElementById('social-handle').placeholder = provider === 'google' ? 'your@email.com' : '@yourhandle';
+    document.getElementById('social-handle').placeholder = p==='google' ? 'your@email.com' : '@yourhandle';
   };
-
   window.backToProviders = function() {
     document.getElementById('social-provider-select').style.display = 'block';
     document.getElementById('social-handle-form').style.display = 'none';
   };
-
   window.socialLogin = async function() {
-    const handle = document.getElementById('social-handle').value.trim();
-    const displayName = document.getElementById('social-display-name').value.trim();
-    if (!handle) { kywToast('Enter your handle', 'error'); return; }
-
+    var handle = document.getElementById('social-handle').value.trim();
+    var displayName = document.getElementById('social-display-name').value.trim();
+    if (!handle) { toast('Enter your handle','error'); return; }
     try {
-      const data = await api('POST', '/api/kyw/auth/social', {
-        provider: selectedProvider,
-        handle,
-        displayName: displayName || handle
-      });
-
-      kywToken = data.token;
-      kywUser = data.user;
-      localStorage.setItem('kyw_token', kywToken);
-      localStorage.setItem('kyw_user', JSON.stringify(kywUser));
-      showApp();
-      kywToast('Welcome, ' + kywUser.displayName + '!');
-    } catch(err) {
-      kywToast(err.message, 'error');
-    }
+      var data = await api('POST', '/api/kyw/auth/social', { provider: selectedProvider, handle: handle, displayName: displayName||handle });
+      kywToken = data.token; kywUser = data.user;
+      localStorage.setItem('kyw_token', kywToken); localStorage.setItem('kyw_user', JSON.stringify(kywUser));
+      showApp(); toast('Welcome, '+kywUser.displayName+'!');
+    } catch(err) { toast(err.message,'error'); }
   };
-
   window.kywLogout = function() {
-    kywToken = null;
-    kywUser = null;
-    localStorage.removeItem('kyw_token');
-    localStorage.removeItem('kyw_user');
+    kywToken=null; kywUser=null; localStorage.removeItem('kyw_token'); localStorage.removeItem('kyw_user');
     document.getElementById('kyw-login-screen').style.display = 'block';
     document.getElementById('kyw-app').style.display = 'none';
   };
 
-  // ─── App ───────────────────────────────────────
+  // ─── App ───────────────────
   function showApp() {
     document.getElementById('kyw-login-screen').style.display = 'none';
     document.getElementById('kyw-app').style.display = 'block';
-
-    // Set user info
-    document.getElementById('kyw-user-handle').textContent = '@' + kywUser.handle;
-    document.getElementById('kyw-user-avatar').textContent = (kywUser.displayName || '?')[0].toUpperCase();
-
-    updateScore();
-    switchTab('feed');
+    document.getElementById('kyw-user-handle').textContent = '@'+kywUser.handle;
+    document.getElementById('kyw-user-avatar').textContent = (kywUser.displayName||'?')[0].toUpperCase();
+    updateScore(); checkPending(); switchTab('feed');
   }
 
   function updateScore() {
-    if (!kywUser || !kywUser.score) return;
-    const s = kywUser.score;
-    const badge = document.getElementById('kyw-score-badge');
-    badge.textContent = s.score + ' ' + s.grade;
-    badge.className = 'kyw-score-badge score-' + s.grade;
-
+    if (!kywUser||!kywUser.score) return;
+    var s = kywUser.score;
+    var badge = document.getElementById('kyw-score-badge');
+    badge.textContent = s.score+' '+s.grade;
+    badge.className = 'kyw-score-badge score-'+s.grade;
     document.getElementById('score-card').innerHTML =
-      '<div class="score-number">' + s.score + '</div>' +
-      '<div class="score-grade score-' + s.grade + '" style="display:inline-block;padding:4px 16px;border-radius:20px;margin-top:8px;">' + s.grade + '</div>' +
-      '<div class="score-breakdown">' +
-        '<div class="score-stat"><div class="score-stat-value">' + s.totalPledges + '</div><div class="score-stat-label">Total Pledges</div></div>' +
-        '<div class="score-stat"><div class="score-stat-value" style="color:var(--green);">' + s.kept + '</div><div class="score-stat-label">Kept</div></div>' +
-        '<div class="score-stat"><div class="score-stat-value" style="color:var(--red);">' + s.broken + '</div><div class="score-stat-label">Broken</div></div>' +
-        '<div class="score-stat"><div class="score-stat-value" style="color:var(--blue);">' + (s.pending || 0) + '</div><div class="score-stat-label">Active</div></div>' +
-        '<div class="score-stat"><div class="score-stat-value" style="color:var(--gold);">' + (s.streak || 0) + '</div><div class="score-stat-label">Streak</div></div>' +
+      '<div class="score-number">'+s.score+'</div>'+
+      '<div class="score-grade score-'+s.grade+'" style="display:inline-block;padding:4px 16px;border-radius:20px;margin-top:8px;">'+s.grade+'</div>'+
+      '<div class="score-breakdown">'+
+        '<div class="score-stat"><div class="score-stat-value">'+s.totalPledges+'</div><div class="score-stat-label">Pledges</div></div>'+
+        '<div class="score-stat"><div class="score-stat-value" style="color:var(--green);">'+s.kept+'</div><div class="score-stat-label">Kept</div></div>'+
+        '<div class="score-stat"><div class="score-stat-value" style="color:var(--red);">'+s.broken+'</div><div class="score-stat-label">Broken</div></div>'+
+        '<div class="score-stat"><div class="score-stat-value" style="color:var(--blue);">'+(s.pending||0)+'</div><div class="score-stat-label">Active</div></div>'+
+        '<div class="score-stat"><div class="score-stat-value" style="color:var(--gold);">'+(s.streak||0)+'</div><div class="score-stat-label">Streak</div></div>'+
+        '<div class="score-stat"><div class="score-stat-value" style="color:var(--orange);">'+(s.maxDailyStreak||0)+'</div><div class="score-stat-label">Best Daily</div></div>'+
       '</div>';
   }
 
-  // ─── Tab Navigation ────────────────────────────
+  async function checkPending() {
+    try {
+      var pending = await api('GET', '/api/kyw/pending');
+      pendingCount = pending.length;
+      var badge = document.getElementById('pending-count');
+      if (pendingCount > 0) {
+        badge.textContent = pendingCount; badge.style.display = 'inline';
+        document.getElementById('pending-banner-area').innerHTML =
+          '<div class="pending-banner">&#128232; You have <strong>'+pendingCount+'</strong> pledge request(s) waiting. <button class="btn btn-orange btn-sm" onclick="switchTab(\'pending\')" style="margin-left:auto;">View</button></div>';
+      } else { badge.style.display = 'none'; document.getElementById('pending-banner-area').innerHTML = ''; }
+    } catch(e) {}
+  }
+
+  // ─── Tabs ──────────────────
   window.switchTab = function(tab) {
     currentTab = tab;
-    document.querySelectorAll('.kyw-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.querySelectorAll('.kyw-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab===tab); });
     switch(tab) {
       case 'feed': renderFeed(); break;
       case 'create': renderCreate(); break;
       case 'my': renderMyPledges(); break;
+      case 'pending': renderPending(); break;
       case 'leaderboard': renderLeaderboard(); break;
     }
   };
 
-  // ─── Feed ──────────────────────────────────────
+  // ─── Feed ──────────────────
   async function renderFeed() {
-    const el = document.getElementById('tab-content');
+    var el = document.getElementById('tab-content');
     el.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
-
     try {
-      let url = '/api/kyw/feed?limit=50';
-      if (feedCategory) url += '&category=' + feedCategory;
-      const feed = await api('GET', url);
+      var url = '/api/kyw/feed?limit=50';
+      if (feedCategory) url += '&category='+feedCategory;
+      var feed = await api('GET', url);
 
-      let html = '<div class="category-chips">';
-      html += '<span class="category-chip ' + (!feedCategory ? 'active' : '') + '" onclick="filterCategory(null)">All</span>';
-      categories.forEach(c => {
-        html += '<span class="category-chip ' + (feedCategory === c.id ? 'active' : '') + '" onclick="filterCategory(\'' + c.id + '\')">' + c.icon + ' ' + c.name + '</span>';
-      });
+      var html = '<div class="category-chips">';
+      html += '<span class="category-chip '+(!feedCategory?'active':'')+'" onclick="filterCategory(null)">All</span>';
+      categories.forEach(function(c) { html += '<span class="category-chip '+(feedCategory===c.id?'active':'')+'" onclick="filterCategory(\''+c.id+'\')">'+c.icon+' '+c.name+'</span>'; });
       html += '</div>';
 
-      if (feed.length === 0) {
-        html += '<div class="empty-state"><div class="empty-icon">&#129309;</div><h3>No pledges yet</h3><p>Be the first to make a public commitment!</p><button class="btn btn-gold" onclick="switchTab(\'create\')">Make a Pledge</button></div>';
-      } else {
-        feed.forEach(p => { html += renderPledgeCard(p, p.user, false); });
+      if (!feed.length) {
+        html += '<div class="empty-state"><div class="empty-icon">&#129309;</div><h3>No pledges yet</h3><p>Be the first!</p><button class="btn btn-gold" onclick="switchTab(\'create\')">Make a Pledge</button></div>';
+      } else { feed.forEach(function(p) { html += renderPledgeCard(p, p.user, false); }); }
+      el.innerHTML = html;
+    } catch(err) { el.innerHTML = '<div class="empty-state"><p style="color:var(--red);">'+err.message+'</p></div>'; }
+  }
+  window.filterCategory = function(cat) { feedCategory = cat; renderFeed(); };
+
+  // ─── Pledge Card ───────────
+  function renderPledgeCard(pledge, user, isMine) {
+    var u = user || {};
+    var provIco = u.provider==='twitter'?'\u{1D54F}':u.provider==='instagram'?'\u{1F4F7}':u.provider==='google'?'G':'\u{1F6E0}';
+    var mode = pledge.mode || 'self';
+    var modeBadge = '<span class="mode-badge mode-'+mode+'">'+(mode==='self'?'&#127919; Self':'&#129309; Mutual')+'</span>';
+
+    var html = '<div class="pledge-card">';
+    html += '<div class="pledge-header"><div class="pledge-user">';
+    html += '<div class="pledge-user-avatar">'+(u.displayName||'?')[0].toUpperCase()+'</div>';
+    html += '<div><div class="pledge-user-name">'+esc(u.displayName||'Anonymous')+(u.verified?' &#10004;':'')+modeBadge+'</div>';
+    html += '<div class="pledge-user-provider">'+provIco+' @'+esc(u.handle||'?')+(u.score?' &middot; Score: '+u.score.score:'')+'</div></div>';
+    html += '</div><span class="pledge-status '+pledge.status+'">'+pledge.status.toUpperCase()+'</span></div>';
+
+    html += '<div class="pledge-title">'+esc(pledge.title)+'</div>';
+    if (pledge.description) html += '<div class="pledge-description">'+esc(pledge.description)+'</div>';
+
+    // Mutual: show counterparty info
+    if (mode === 'mutual' && pledge.counterpartyHandle) {
+      html += '<div style="font-size:12px;padding:8px 12px;background:var(--orange-dim);border-radius:8px;margin-bottom:12px;color:var(--orange);">';
+      html += '&#129309; With: @'+esc(pledge.counterpartyHandle);
+      html += pledge.counterpartyAccepted ? ' &#10004; Accepted' : ' &#8987; Waiting';
+      html += '</div>';
+    }
+
+    // Self: show streak / check-in progress
+    if (mode === 'self' && pledge.targetDays) {
+      var checkins = pledge.checkins || [];
+      var verified = checkins.filter(function(c) { return c.verified; }).length;
+      var pct = Math.min(100, Math.round((verified / pledge.targetDays) * 100));
+      html += '<div class="streak-bar">';
+      html += '<div class="streak-bar-label"><span>'+verified+' / '+pledge.targetDays+' days</span>';
+      if (pledge.currentStreak > 0) html += '<span class="streak-fire">&#128293; '+pledge.currentStreak+' day streak</span>';
+      html += '</div>';
+      html += '<div class="streak-bar-track"><div class="streak-bar-fill" style="width:'+pct+'%"></div></div>';
+      html += '</div>';
+
+      // Check-in dots
+      if (checkins.length > 0) {
+        html += '<div class="checkin-dots" title="Check-in history">';
+        var last30 = checkins.slice(-30);
+        last30.forEach(function(c) { html += '<div class="checkin-dot '+(c.verified?'verified':'failed')+'" title="'+c.date+' '+c.method+'"></div>'; });
+        var remaining = Math.max(0, pledge.targetDays - checkins.length);
+        for (var i=0; i < Math.min(remaining, 10); i++) html += '<div class="checkin-dot empty"></div>';
+        html += '</div>';
       }
 
-      el.innerHTML = html;
-    } catch(err) {
-      el.innerHTML = '<div class="empty-state"><p style="color:var(--red);">Error: ' + err.message + '</p></div>';
+      if (pledge.locationName) {
+        html += '<div style="font-size:11px;color:var(--text3);margin-top:6px;">&#128205; '+esc(pledge.locationName)+'</div>';
+      }
     }
-  }
-
-  window.filterCategory = function(cat) {
-    feedCategory = cat;
-    renderFeed();
-  };
-
-  function renderPledgeCard(pledge, user, isMine) {
-    const statusClass = pledge.status;
-    const u = user || {};
-    const providerIcon = u.provider === 'twitter' ? '\u{1D54F}' : u.provider === 'instagram' ? '\u{1F4F7}' : u.provider === 'google' ? 'G' : '\u{1F6E0}';
-
-    let html = '<div class="pledge-card">';
-    html += '<div class="pledge-header">';
-    html += '<div class="pledge-user">';
-    html += '<div class="pledge-user-avatar">' + (u.displayName || '?')[0].toUpperCase() + '</div>';
-    html += '<div><div class="pledge-user-name">' + esc(u.displayName || 'Anonymous') + (u.verified ? ' &#10004;' : '') + '</div>';
-    html += '<div class="pledge-user-provider">' + providerIcon + ' @' + esc(u.handle || '?') + (u.score ? ' &middot; Score: ' + u.score.score : '') + '</div></div>';
-    html += '</div>';
-    html += '<span class="pledge-status ' + statusClass + '">' + pledge.status.toUpperCase() + '</span>';
-    html += '</div>';
-
-    html += '<div class="pledge-title">' + esc(pledge.title) + '</div>';
-    if (pledge.description) html += '<div class="pledge-description">' + esc(pledge.description) + '</div>';
 
     html += '<div class="pledge-meta">';
-    const cat = categories.find(c => c.id === pledge.category);
-    if (cat) html += '<span class="pledge-meta-item">' + cat.icon + ' ' + cat.name + '</span>';
-    if (pledge.deadline) html += '<span class="pledge-meta-item">&#128197; ' + new Date(pledge.deadline).toLocaleDateString() + '</span>';
-    if (pledge.hasStake) html += '<span class="pledge-meta-item">&#128176; Staked</span>';
-    html += '<span class="pledge-meta-item">&#128336; ' + timeAgo(pledge.createdAt) + '</span>';
+    var cat = categories.find(function(c) { return c.id===pledge.category; });
+    if (cat) html += '<span class="pledge-meta-item">'+cat.icon+' '+cat.name+'</span>';
+    if (pledge.deadline) html += '<span class="pledge-meta-item">&#128197; '+new Date(pledge.deadline).toLocaleDateString()+'</span>';
+    if (pledge.frequency) html += '<span class="pledge-meta-item">&#128260; '+pledge.frequency+'</span>';
+    if (pledge.verificationType) {
+      var vi = { gps:'&#128205; GPS', timed:'&#9200; Timed', photo:'&#128247; Photo', streak:'&#128293; Streak', peer:'&#128101; Peer' };
+      html += '<span class="pledge-meta-item">'+(vi[pledge.verificationType]||pledge.verificationType)+'</span>';
+    }
+    html += '<span class="pledge-meta-item">&#128336; '+timeAgo(pledge.createdAt)+'</span>';
     html += '</div>';
-
-    html += '<div class="pledge-hash">Hash: ' + (pledge.contentHash || '') + '</div>';
+    html += '<div class="pledge-hash">Hash: '+(pledge.contentHash||'')+'</div>';
 
     html += '<div class="pledge-reactions">';
-    html += '<span class="pledge-reaction" onclick="reactPledge(\'' + pledge.id + '\', \'vouch\')">&#128077; Vouch (' + (pledge.reactions?.vouch || 0) + ')</span>';
-    html += '<span class="pledge-reaction" onclick="reactPledge(\'' + pledge.id + '\', \'doubt\')">&#129300; Doubt (' + (pledge.reactions?.doubt || 0) + ')</span>';
+    html += '<span class="pledge-reaction" onclick="reactPledge(\''+pledge.id+'\',\'vouch\')">&#128077; Vouch ('+(pledge.reactions&&pledge.reactions.vouch||0)+')</span>';
+    html += '<span class="pledge-reaction" onclick="reactPledge(\''+pledge.id+'\',\'doubt\')">&#129300; Doubt ('+(pledge.reactions&&pledge.reactions.doubt||0)+')</span>';
     html += '</div>';
 
+    // Actions for own pledges
     if (isMine && pledge.status === 'active') {
       html += '<div class="pledge-actions">';
-      html += '<button class="btn btn-green btn-sm" onclick="resolvePledge(\'' + pledge.id + '\', \'kept\')">&#10004; I Kept It</button>';
-      html += '<button class="btn btn-red btn-sm" onclick="resolvePledge(\'' + pledge.id + '\', \'broken\')">&#10006; I Broke It</button>';
+      if (mode === 'self') {
+        html += '<button class="btn btn-blue btn-sm" onclick="doCheckin(\''+pledge.id+'\',\''+pledge.verificationType+'\')">&#128205; Check In</button>';
+      }
+      if (mode === 'mutual' && pledge.counterpartyAccepted && pledge.linkedRole === 'counterparty') {
+        html += '<button class="btn btn-green btn-sm" onclick="confirmMutualPledge(\''+pledge.id+'\',\'kept\')">&#10004; They Kept It</button>';
+        html += '<button class="btn btn-red btn-sm" onclick="confirmMutualPledge(\''+pledge.id+'\',\'broken\')">&#10006; They Broke It</button>';
+      } else {
+        html += '<button class="btn btn-green btn-sm" onclick="resolvePledge(\''+pledge.id+'\',\'kept\')">&#10004; Kept</button>';
+        html += '<button class="btn btn-red btn-sm" onclick="resolvePledge(\''+pledge.id+'\',\'broken\')">&#10006; Broken</button>';
+      }
       html += '</div>';
     }
 
@@ -628,156 +601,337 @@
     return html;
   }
 
-  // ─── My Pledges ────────────────────────────────
-  async function renderMyPledges() {
-    const el = document.getElementById('tab-content');
-    el.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
-
-    try {
-      const profile = await api('GET', '/api/kyw/profile/' + encodeURIComponent(kywUser.id));
-      kywUser.score = profile.score;
-      updateScore();
-
-      const pledges = profile.pledges;
-      if (pledges.length === 0) {
-        el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#129309;</div><h3>No pledges yet</h3><p>Make your first commitment!</p><button class="btn btn-gold" onclick="switchTab(\'create\')">Make a Pledge</button></div>';
-        return;
+  // ─── Check-in ──────────────
+  window.doCheckin = async function(pledgeId, vType) {
+    var lat = null, lng = null;
+    if (vType === 'gps') {
+      toast('Getting your location...');
+      try {
+        var pos = await new Promise(function(resolve, reject) {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 });
+        });
+        lat = pos.coords.latitude; lng = pos.coords.longitude;
+      } catch(e) {
+        toast('Location access denied. Check-in will be unverified.','error');
       }
-
-      let html = '';
-      pledges.forEach(p => { html += renderPledgeCard(p, { ...kywUser, score: profile.score }, true); });
-      el.innerHTML = html;
-    } catch(err) {
-      el.innerHTML = '<div class="empty-state"><p style="color:var(--red);">Error loading pledges</p></div>';
     }
-  }
-
-  // ─── Create Pledge ─────────────────────────────
-  function renderCreate() {
-    const el = document.getElementById('tab-content');
-    let catOptions = categories.map(c => '<option value="' + c.id + '">' + c.icon + ' ' + c.name + '</option>').join('');
-
-    el.innerHTML =
-      '<div class="create-pledge-form">' +
-        '<h2 style="margin-bottom:24px;">&#129309; Make a Public Pledge</h2>' +
-        '<div class="form-group">' +
-          '<label>What are you committing to?</label>' +
-          '<input class="form-input" id="pledge-title" placeholder="e.g. I will ship my MVP by March 1st">' +
-        '</div>' +
-        '<div class="form-group">' +
-          '<label>Details (optional)</label>' +
-          '<textarea class="form-textarea" id="pledge-description" placeholder="More context about your promise..."></textarea>' +
-        '</div>' +
-        '<div class="form-row">' +
-          '<div class="form-group">' +
-            '<label>Category</label>' +
-            '<select class="form-select" id="pledge-category">' + catOptions + '</select>' +
-          '</div>' +
-          '<div class="form-group">' +
-            '<label>Deadline (optional)</label>' +
-            '<input class="form-input" id="pledge-deadline" type="date">' +
-          '</div>' +
-        '</div>' +
-        '<div class="form-group">' +
-          '<label><input type="checkbox" id="pledge-public" checked> Make this pledge public</label>' +
-          '<div class="form-hint">Public pledges are visible in the global feed and affect your social score</div>' +
-        '</div>' +
-        '<button class="btn btn-gold" onclick="submitPledge()" style="margin-top:12px;">&#129309; Keep My Word</button>' +
-      '</div>';
-  }
-
-  window.submitPledge = async function() {
-    const title = document.getElementById('pledge-title').value.trim();
-    const description = document.getElementById('pledge-description').value.trim();
-    const category = document.getElementById('pledge-category').value;
-    const deadline = document.getElementById('pledge-deadline').value;
-    const isPublic = document.getElementById('pledge-public').checked;
-
-    if (!title) { kywToast('Enter what you\'re committing to', 'error'); return; }
 
     try {
-      const data = await api('POST', '/api/kyw/pledges', {
-        title, description, category, deadline: deadline || null, isPublic
+      var res = await api('POST', '/api/kyw/pledges/'+pledgeId+'/checkin', {
+        latitude: lat, longitude: lng, timestamp: new Date().toISOString(), note: ''
       });
-      kywUser.score = data.score;
-      updateScore();
-      kywToast('Pledge created! Hash: ' + data.pledge.contentHash.substring(0, 16) + '...');
-      switchTab('my');
-    } catch(err) {
-      kywToast(err.message, 'error');
-    }
-  };
 
-  // ─── Resolve Pledge ────────────────────────────
-  window.resolvePledge = async function(id, resolution) {
-    if (!confirm('Are you sure? This cannot be undone. Mark as: ' + resolution.toUpperCase())) return;
-    try {
-      const data = await api('POST', '/api/kyw/pledges/' + id + '/resolve', { resolution });
-      kywUser.score = data.score;
-      updateScore();
-      kywToast('Pledge marked as ' + resolution.toUpperCase());
-      renderMyPledges();
-    } catch(err) {
-      kywToast(err.message, 'error');
-    }
-  };
-
-  // ─── React ─────────────────────────────────────
-  window.reactPledge = async function(id, reaction) {
-    try {
-      await api('POST', '/api/kyw/pledges/' + id + '/react', { reaction });
-      if (currentTab === 'feed') renderFeed();
-      else renderMyPledges();
-    } catch(err) {
-      kywToast(err.message, 'error');
-    }
-  };
-
-  // ─── Leaderboard ───────────────────────────────
-  async function renderLeaderboard() {
-    const el = document.getElementById('tab-content');
-    el.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
-
-    try {
-      const board = await api('GET', '/api/kyw/leaderboard');
-      if (board.length === 0) {
-        el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#127942;</div><h3>No rankings yet</h3><p>Be the first on the leaderboard!</p></div>';
-        return;
+      if (res.verified) {
+        toast('Check-in verified! Streak: '+res.streak+' days');
+      } else {
+        toast('Check-in recorded (unverified). '+res.streak+' day streak', 'error');
       }
 
-      let html = '<h2 style="margin-bottom:20px;">&#127942; Trust Leaderboard</h2>';
-      board.forEach((u, i) => {
-        const rank = i + 1;
-        const medal = rank === 1 ? '&#129351;' : rank === 2 ? '&#129352;' : rank === 3 ? '&#129353;' : rank;
-        html += '<div class="lb-row">';
-        html += '<div class="lb-rank ' + (rank <= 3 ? 'top3' : '') + '">' + medal + '</div>';
-        html += '<div class="lb-info"><div class="lb-handle">' + esc(u.displayName) + (u.verified ? ' &#10004;' : '') + '</div>';
-        html += '<div class="lb-provider">@' + esc(u.handle) + ' &middot; ' + u.score.totalPledges + ' pledges &middot; ' + u.score.kept + ' kept</div></div>';
-        html += '<div class="lb-score"><div class="lb-score-value">' + u.score.score + '</div>';
-        html += '<div class="lb-score-grade score-' + u.score.grade + '" style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;">' + u.score.grade + '</div></div>';
+      kywUser.score = res.score; updateScore();
+      if (res.pledgeStatus === 'kept') toast('Pledge completed! Target reached!');
+      renderMyPledges();
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  // ─── Create ────────────────
+  function renderCreate() {
+    var el = document.getElementById('tab-content');
+    var html = '<div class="create-pledge-form">';
+    html += '<h2 style="margin-bottom:24px;">&#129309; New Pledge</h2>';
+
+    // Mode toggle
+    html += '<div class="mode-toggle">';
+    html += '<button class="mode-toggle-btn '+(createMode==='self'?'active':'')+'" onclick="setCreateMode(\'self\')">&#127919; Self-Pledge</button>';
+    html += '<button class="mode-toggle-btn '+(createMode==='mutual'?'active':'')+'" onclick="setCreateMode(\'mutual\')">&#129309; Mutual Pledge</button>';
+    html += '</div>';
+
+    if (createMode === 'self') {
+      // Template picker
+      html += '<label style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px;display:block;">Choose a template (optional)</label>';
+      html += '<div class="template-grid">';
+      templates.forEach(function(t) {
+        html += '<div class="template-card '+(selectedTemplate===t.id?'selected':'')+'" onclick="pickTemplate(\''+t.id+'\')">';
+        html += '<div class="template-card-icon">'+t.icon+'</div>';
+        html += '<div class="template-card-name">'+t.name+'</div>';
+        html += '<div class="template-card-desc">'+t.description.substring(0,50)+'</div>';
         html += '</div>';
       });
-      el.innerHTML = html;
-    } catch(err) {
-      el.innerHTML = '<div class="empty-state"><p style="color:var(--red);">Error loading leaderboard</p></div>';
+      html += '</div>';
+
+      var tpl = selectedTemplate ? templates.find(function(t) { return t.id === selectedTemplate; }) : null;
+      var defTitle = tpl ? tpl.defaultTitle : '';
+      var defVerify = tpl ? tpl.verification : 'streak';
+      var defFreq = tpl ? (tpl.frequencyOptions[0] || 'daily') : 'daily';
+
+      html += '<div class="form-group"><label>What are you committing to?</label>';
+      html += '<input class="form-input" id="pledge-title" placeholder="e.g. Go to Planet Fitness 5x/week" value="'+esc(defTitle)+'"></div>';
+      html += '<div class="form-group"><label>Details (optional)</label>';
+      html += '<textarea class="form-textarea" id="pledge-description" placeholder="More context..."></textarea></div>';
+
+      html += '<div class="form-row">';
+      html += '<div class="form-group"><label>Verification Method</label><select class="form-select" id="pledge-verify" onchange="toggleLocationFields()">';
+      var verifyNames = {gps:'&#128205; GPS Location',timed:'&#9200; Time-Stamped',photo:'&#128247; Photo Proof',streak:'&#128293; Daily Streak'};
+      ['gps','timed','photo','streak'].forEach(function(v) {
+        html += '<option value="'+v+'"'+(v===defVerify?' selected':'')+'>'+verifyNames[v]+'</option>';
+      });
+      html += '</select><div class="form-hint" id="verify-hint">'+getVerifyHint(defVerify)+'</div></div>';
+
+      html += '<div class="form-group"><label>Frequency</label><select class="form-select" id="pledge-frequency">';
+      ['daily','3x/week','5x/week','weekdays','weekly'].forEach(function(f) { html += '<option value="'+f+'"'+(f===defFreq?' selected':'')+'>'+f+'</option>'; });
+      html += '</select></div></div>';
+
+      // GPS location fields
+      var showGPS = defVerify === 'gps';
+      html += '<div id="gps-fields" style="display:'+(showGPS?'block':'none')+'">';
+      html += '<div class="form-group"><label>Location Name</label><input class="form-input" id="pledge-location-name" placeholder="e.g. Planet Fitness Downtown"></div>';
+      html += '<div class="form-row">';
+      html += '<div class="form-group"><label>Latitude</label><input class="form-input" id="pledge-lat" type="number" step="any" placeholder="Auto-detect"></div>';
+      html += '<div class="form-group"><label>Longitude</label><input class="form-input" id="pledge-lng" type="number" step="any" placeholder="Auto-detect"></div>';
+      html += '</div>';
+      html += '<div class="form-group"><label>Radius (meters)</label><input class="form-input" id="pledge-radius" type="number" value="200" min="50" max="2000">';
+      html += '<div class="form-hint">How close you need to be for GPS verification (200m default)</div></div>';
+      html += '<button type="button" class="btn btn-outline btn-sm" onclick="detectLocation()" style="margin-bottom:20px;">&#128205; Use My Current Location</button>';
+      html += '</div>';
+
+      // Timed fields
+      html += '<div id="timed-fields" style="display:'+(defVerify==='timed'?'block':'none')+'">';
+      html += '<div class="form-group"><label>Daily Deadline (check in before)</label>';
+      var timedVal = (tpl && tpl.fields && tpl.fields.dailyDeadline) ? tpl.fields.dailyDeadline : '06:00';
+      html += '<input class="form-input" id="pledge-deadline-time" type="time" value="'+timedVal+'"></div></div>';
+
+      html += '<div class="form-row">';
+      html += '<div class="form-group"><label>Target Days</label><input class="form-input" id="pledge-target-days" type="number" value="30" min="1" max="365">';
+      html += '<div class="form-hint">Complete this many check-ins to auto-finish the pledge</div></div>';
+      html += '<div class="form-group"><label>Category</label><select class="form-select" id="pledge-category">';
+      categories.forEach(function(c) { html += '<option value="'+c.id+'"'+(tpl&&tpl.category===c.id?' selected':'')+'>'+c.icon+' '+c.name+'</option>'; });
+      html += '</select></div></div>';
+
+      html += '<div class="form-group"><label><input type="checkbox" id="pledge-public" checked> Make public</label></div>';
+      html += '<button class="btn btn-gold" onclick="submitSelfPledge()" style="margin-top:12px;">&#127919; Start My Challenge</button>';
+
+    } else {
+      // Mutual pledge form
+      html += '<div style="padding:16px;background:var(--orange-dim);border-radius:8px;margin-bottom:24px;font-size:13px;color:var(--orange);">';
+      html += '&#129309; Make a promise to someone. They\'ll need to accept and will confirm when you keep (or break) your word.</div>';
+
+      html += '<div class="form-group"><label>What are you promising?</label>';
+      html += '<input class="form-input" id="mutual-title" placeholder="e.g. I will pay you back $200 by Friday"></div>';
+      html += '<div class="form-group"><label>Details</label>';
+      html += '<textarea class="form-textarea" id="mutual-description" placeholder="Full details..."></textarea></div>';
+
+      html += '<div class="form-row">';
+      html += '<div class="form-group"><label>Their Social Platform</label><select class="form-select" id="mutual-provider">';
+      html += '<option value="twitter">X (Twitter)</option><option value="instagram">Instagram</option>';
+      html += '<option value="google">Google</option><option value="github">GitHub</option></select></div>';
+      html += '<div class="form-group"><label>Their Handle</label>';
+      html += '<input class="form-input" id="mutual-handle" placeholder="@theirhandle"></div></div>';
+
+      html += '<div class="form-row">';
+      html += '<div class="form-group"><label>Category</label><select class="form-select" id="mutual-category">';
+      categories.forEach(function(c) { html += '<option value="'+c.id+'">'+c.icon+' '+c.name+'</option>'; });
+      html += '</select></div>';
+      html += '<div class="form-group"><label>Deadline (optional)</label>';
+      html += '<input class="form-input" id="mutual-deadline" type="date"></div></div>';
+
+      html += '<div class="form-group"><label><input type="checkbox" id="mutual-public" checked> Make public</label></div>';
+      html += '<button class="btn btn-gold" onclick="submitMutualPledge()" style="margin-top:12px;">&#129309; Send Pledge</button>';
     }
+
+    html += '</div>';
+    el.innerHTML = html;
   }
 
-  // ─── Helpers ───────────────────────────────────
-  function esc(s) {
-    if (!s) return '';
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  window.setCreateMode = function(m) { createMode = m; selectedTemplate = null; renderCreate(); };
+  window.pickTemplate = function(id) { selectedTemplate = selectedTemplate===id ? null : id; renderCreate(); };
+
+  function getVerifyHint(v) {
+    var hints = {
+      gps: 'GPS will confirm you visited the location within the radius',
+      timed: 'You must check in before the daily deadline',
+      photo: 'Upload a photo as proof when checking in',
+      streak: 'Simple daily check-in button to maintain your streak'
+    };
+    return hints[v] || '';
   }
 
-  function timeAgo(dateStr) {
-    const d = new Date(dateStr);
-    const now = new Date();
-    const seconds = Math.floor((now - d) / 1000);
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
-    if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-    if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
-    return d.toLocaleDateString();
+  window.toggleLocationFields = function() {
+    var v = document.getElementById('pledge-verify').value;
+    document.getElementById('gps-fields').style.display = v==='gps'?'block':'none';
+    document.getElementById('timed-fields').style.display = v==='timed'?'block':'none';
+    document.getElementById('verify-hint').innerHTML = getVerifyHint(v);
+  };
+
+  window.detectLocation = function() {
+    toast('Detecting location...');
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      document.getElementById('pledge-lat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('pledge-lng').value = pos.coords.longitude.toFixed(6);
+      toast('Location detected!');
+    }, function(err) { toast('Could not detect location: '+err.message, 'error'); }, { enableHighAccuracy: true, timeout: 15000 });
+  };
+
+  // ─── Submit Self Pledge ─────
+  window.submitSelfPledge = async function() {
+    var title = document.getElementById('pledge-title').value.trim();
+    if (!title) { toast('Enter what you\'re committing to','error'); return; }
+
+    var body = {
+      title: title,
+      description: document.getElementById('pledge-description').value.trim(),
+      mode: 'self',
+      templateId: selectedTemplate,
+      verificationType: document.getElementById('pledge-verify').value,
+      frequency: document.getElementById('pledge-frequency').value,
+      targetDays: parseInt(document.getElementById('pledge-target-days').value) || 30,
+      category: document.getElementById('pledge-category').value,
+      isPublic: document.getElementById('pledge-public').checked
+    };
+
+    if (body.verificationType === 'gps') {
+      body.locationName = document.getElementById('pledge-location-name').value.trim();
+      body.latitude = parseFloat(document.getElementById('pledge-lat').value) || null;
+      body.longitude = parseFloat(document.getElementById('pledge-lng').value) || null;
+      body.radiusMeters = parseInt(document.getElementById('pledge-radius').value) || 200;
+    }
+    if (body.verificationType === 'timed') {
+      body.dailyDeadline = document.getElementById('pledge-deadline-time').value || '06:00';
+    }
+
+    try {
+      var data = await api('POST', '/api/kyw/pledges', body);
+      kywUser.score = data.score; updateScore();
+      toast('Challenge started! Hash: '+data.pledge.contentHash.substring(0,16)+'...');
+      selectedTemplate = null; switchTab('my');
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  // ─── Submit Mutual Pledge ───
+  window.submitMutualPledge = async function() {
+    var title = document.getElementById('mutual-title').value.trim();
+    var handle = document.getElementById('mutual-handle').value.trim().replace('@','');
+    if (!title) { toast('Enter your promise','error'); return; }
+    if (!handle) { toast('Enter the other person\'s handle','error'); return; }
+
+    try {
+      var data = await api('POST', '/api/kyw/pledges', {
+        title: title,
+        description: document.getElementById('mutual-description').value.trim(),
+        mode: 'mutual',
+        counterpartyHandle: handle,
+        counterpartyProvider: document.getElementById('mutual-provider').value,
+        category: document.getElementById('mutual-category').value,
+        deadline: document.getElementById('mutual-deadline').value || null,
+        isPublic: document.getElementById('mutual-public').checked
+      });
+      kywUser.score = data.score; updateScore();
+      toast('Pledge sent! Waiting for @'+handle+' to accept.');
+      switchTab('my');
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  // ─── My Pledges ────────────
+  async function renderMyPledges() {
+    var el = document.getElementById('tab-content');
+    el.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
+    try {
+      var profile = await api('GET', '/api/kyw/profile/'+encodeURIComponent(kywUser.id));
+      kywUser.score = profile.score; updateScore();
+      if (!profile.pledges.length) {
+        el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#129309;</div><h3>No pledges yet</h3><button class="btn btn-gold" onclick="switchTab(\'create\')">Make a Pledge</button></div>';
+        return;
+      }
+      var html = '';
+      profile.pledges.forEach(function(p) { html += renderPledgeCard(p, { displayName:kywUser.displayName, handle:kywUser.handle, provider:kywUser.provider, verified:kywUser.verified, score:profile.score }, true); });
+      el.innerHTML = html;
+    } catch(err) { el.innerHTML = '<div class="empty-state"><p style="color:var(--red);">Error loading pledges</p></div>'; }
+  }
+
+  // ─── Pending Requests ──────
+  async function renderPending() {
+    var el = document.getElementById('tab-content');
+    el.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
+    try {
+      var pending = await api('GET', '/api/kyw/pending');
+      if (!pending.length) {
+        el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128232;</div><h3>No pending requests</h3><p>When someone makes a pledge involving you, it will show up here.</p></div>';
+        return;
+      }
+      var html = '<h2 style="margin-bottom:20px;">&#128232; Pledge Requests</h2>';
+      pending.forEach(function(p) {
+        var u = p.user || {};
+        html += '<div class="pledge-card" style="border-color:var(--orange);">';
+        html += '<div class="pledge-header"><div class="pledge-user">';
+        html += '<div class="pledge-user-avatar">'+(u.displayName||'?')[0].toUpperCase()+'</div>';
+        html += '<div><div class="pledge-user-name">'+esc(u.displayName)+' <span class="mode-badge mode-mutual">&#129309; Mutual</span></div>';
+        html += '<div class="pledge-user-provider">@'+esc(u.handle)+'</div></div></div>';
+        html += '<span class="pledge-status active">PENDING</span></div>';
+        html += '<div class="pledge-title">'+esc(p.title)+'</div>';
+        if (p.description) html += '<div class="pledge-description">'+esc(p.description)+'</div>';
+        html += '<div style="font-size:13px;color:var(--orange);margin:12px 0;">This person made a pledge to you. Accept to hold them accountable.</div>';
+        html += '<div class="pledge-actions">';
+        html += '<button class="btn btn-green btn-sm" onclick="acceptPledge(\''+p.id+'\')">&#10004; Accept</button>';
+        html += '<button class="btn btn-outline btn-sm" onclick="toast(\'Ignored for now\')">Ignore</button>';
+        html += '</div></div>';
+      });
+      el.innerHTML = html;
+    } catch(err) { el.innerHTML = '<div class="empty-state"><p style="color:var(--red);">'+err.message+'</p></div>'; }
+  }
+
+  window.acceptPledge = async function(id) {
+    try {
+      await api('POST', '/api/kyw/pledges/'+id+'/accept', {});
+      toast('Pledge accepted! You can confirm when they keep their word.');
+      checkPending(); renderPending();
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  // ─── Confirm Mutual ────────
+  window.confirmMutualPledge = async function(id, resolution) {
+    if (!confirm('Confirm this pledge as '+resolution.toUpperCase()+'? This cannot be undone.')) return;
+    try {
+      await api('POST', '/api/kyw/pledges/'+id+'/confirm', { resolution: resolution });
+      toast('Pledge confirmed as '+resolution.toUpperCase());
+      renderMyPledges();
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  // ─── Resolve ───────────────
+  window.resolvePledge = async function(id, resolution) {
+    if (!confirm('Mark as '+resolution.toUpperCase()+'? This cannot be undone.')) return;
+    try {
+      var data = await api('POST', '/api/kyw/pledges/'+id+'/resolve', { resolution: resolution });
+      kywUser.score = data.score; updateScore();
+      toast('Pledge marked as '+resolution.toUpperCase());
+      renderMyPledges();
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  window.reactPledge = async function(id, reaction) {
+    try {
+      await api('POST', '/api/kyw/pledges/'+id+'/react', { reaction: reaction });
+      if (currentTab==='feed') renderFeed(); else renderMyPledges();
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  // ─── Leaderboard ───────────
+  async function renderLeaderboard() {
+    var el = document.getElementById('tab-content');
+    el.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
+    try {
+      var board = await api('GET', '/api/kyw/leaderboard');
+      if (!board.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#127942;</div><h3>No rankings yet</h3></div>'; return; }
+      var html = '<h2 style="margin-bottom:20px;">&#127942; Trust Leaderboard</h2>';
+      board.forEach(function(u, i) {
+        var rank = i+1;
+        var medal = rank===1?'&#129351;':rank===2?'&#129352;':rank===3?'&#129353;':rank;
+        html += '<div class="lb-row"><div class="lb-rank '+(rank<=3?'top3':'')+'">'+medal+'</div>';
+        html += '<div class="lb-info"><div class="lb-handle">'+esc(u.displayName)+(u.verified?' &#10004;':'')+'</div>';
+        html += '<div class="lb-provider">@'+esc(u.handle)+' &middot; '+u.score.totalPledges+' pledges &middot; '+u.score.kept+' kept'+(u.score.maxDailyStreak?' &middot; &#128293; '+u.score.maxDailyStreak+' streak':'')+'</div></div>';
+        html += '<div class="lb-score"><div class="lb-score-value">'+u.score.score+'</div>';
+        html += '<div class="lb-score-grade score-'+u.score.grade+'" style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;">'+u.score.grade+'</div></div></div>';
+      });
+      el.innerHTML = html;
+    } catch(err) { el.innerHTML = '<div class="empty-state"><p style="color:var(--red);">'+err.message+'</p></div>'; }
   }
 
 })();

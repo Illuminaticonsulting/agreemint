@@ -18,7 +18,7 @@ const { hashDocument, createAuditEntry, signAgreement, generateCertificate, veri
 const { generatePDF, generateCertificatePDF, formatType } = require('./pdf-engine');
 const { AGREEMENT_TYPES, JURISDICTIONS, CATEGORIES } = require('./templates');
 const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS, ESCROW_CURRENCIES, ESCROW_RULE_PRESETS } = require('./blockchain-engine');
-const { calculateSocialScore, createPledge, resolvePledge, hashPledge, PLEDGE_CATEGORIES } = require('./kyw-engine');
+const { calculateSocialScore, createPledge, resolvePledge, processCheckin, hashPledge, PLEDGE_CATEGORIES, VERIFICATION_TYPES, SELF_PLEDGE_TEMPLATES } = require('./kyw-engine');
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -771,7 +771,20 @@ app.get('/api/kyw/profile/:userId', (req, res) => {
       hasStake: p.hasStake,
       contentHash: p.contentHash,
       createdAt: p.createdAt,
-      resolvedAt: p.resolvedAt
+      resolvedAt: p.resolvedAt,
+      mode: p.mode || 'self',
+      verificationType: p.verificationType,
+      templateId: p.templateId,
+      currentStreak: p.currentStreak || 0,
+      longestStreak: p.longestStreak || 0,
+      totalCheckins: p.totalCheckins || 0,
+      targetDays: p.targetDays,
+      frequency: p.frequency,
+      locationName: p.locationName,
+      counterpartyHandle: p.counterpartyHandle,
+      counterpartyAccepted: p.counterpartyAccepted,
+      checkins: p.checkins || [],
+      reactions: p.reactions
     }))
   });
 });
@@ -786,6 +799,15 @@ app.post('/api/kyw/pledges', (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const pledge = createPledge(userId, req.body);
+
+  // For mutual pledges, link to counterparty if they exist
+  if (pledge.mode === 'mutual' && pledge.counterpartyHandle && pledge.counterpartyProvider) {
+    const cpId = `${pledge.counterpartyProvider}:${pledge.counterpartyHandle.toLowerCase().replace('@', '')}`;
+    if (db.kywUsers[cpId]) {
+      pledge.counterpartyUserId = cpId;
+    }
+  }
+
   user.pledges.push(pledge);
   db.pledges[pledge.id] = { ...pledge, userHandle: user.handle, userProvider: user.provider };
   saveDB();
@@ -926,6 +948,158 @@ app.get('/api/kyw/stats', (req, res) => {
     brokenPledges: allPledges.filter(p => p.status === 'broken').length,
     categories: PLEDGE_CATEGORIES
   });
+});
+
+// ---- KYW: Check-in for self-pledges ----
+app.post('/api/kyw/pledges/:id/checkin', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token || !authTokens[token]) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = authTokens[token];
+  const user = db.kywUsers[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const pledge = user.pledges.find(p => p.id === req.params.id);
+  if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
+  if (pledge.status !== 'active') return res.status(400).json({ error: 'Pledge is already resolved' });
+  if (pledge.mode !== 'self') return res.status(400).json({ error: 'Check-ins are for self-pledges only' });
+
+  const result = processCheckin(pledge, {
+    latitude: req.body.latitude,
+    longitude: req.body.longitude,
+    timestamp: req.body.timestamp || new Date().toISOString(),
+    photoUrl: req.body.photoUrl,
+    note: req.body.note
+  });
+
+  if (!result.success) return res.status(400).json({ error: result.error });
+
+  // Sync to global pledges
+  if (db.pledges[pledge.id]) {
+    db.pledges[pledge.id] = { ...pledge, userHandle: user.handle, userProvider: user.provider };
+  }
+  saveDB();
+
+  res.json({
+    checkin: result.checkin,
+    streak: pledge.currentStreak,
+    longestStreak: pledge.longestStreak,
+    totalCheckins: pledge.totalCheckins,
+    verified: result.verified,
+    score: calculateSocialScore(user),
+    pledgeStatus: pledge.status
+  });
+});
+
+// ---- KYW: Mutual pledge — counterparty accepts ----
+app.post('/api/kyw/pledges/:id/accept', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token || !authTokens[token]) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = authTokens[token];
+  const pledge = db.pledges[req.params.id];
+  if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
+  if (pledge.mode !== 'mutual') return res.status(400).json({ error: 'Not a mutual pledge' });
+
+  // Check the accepting user matches the counterparty
+  const user = db.kywUsers[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const userHandle = user.handle.toLowerCase();
+  const cpHandle = (pledge.counterpartyHandle || '').toLowerCase().replace('@', '');
+
+  if (userHandle !== cpHandle) return res.status(403).json({ error: 'You are not the counterparty for this pledge' });
+
+  pledge.counterpartyAccepted = true;
+  pledge.counterpartyUserId = userId;
+
+  // Also add to counterparty's pledges as a linked reference
+  if (!user.pledges.find(p => p.id === pledge.id)) {
+    user.pledges.push({ ...pledge, linkedRole: 'counterparty' });
+  }
+
+  // Update creator's copy
+  const creator = db.kywUsers[pledge.userId];
+  if (creator) {
+    const creatorPledge = creator.pledges.find(p => p.id === pledge.id);
+    if (creatorPledge) {
+      creatorPledge.counterpartyAccepted = true;
+      creatorPledge.counterpartyUserId = userId;
+    }
+  }
+
+  saveDB();
+  res.json({ ok: true, pledge });
+});
+
+// ---- KYW: Mutual pledge — counterparty confirms kept/broken ----
+app.post('/api/kyw/pledges/:id/confirm', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token || !authTokens[token]) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = authTokens[token];
+  const { resolution } = req.body;
+  if (!['kept', 'broken'].includes(resolution)) return res.status(400).json({ error: 'Resolution must be "kept" or "broken"' });
+
+  const pledge = db.pledges[req.params.id];
+  if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
+  if (pledge.mode !== 'mutual') return res.status(400).json({ error: 'Not a mutual pledge' });
+  if (pledge.status !== 'active') return res.status(400).json({ error: 'Pledge already resolved' });
+  if (!pledge.counterpartyAccepted) return res.status(400).json({ error: 'Counterparty has not accepted yet' });
+  if (pledge.counterpartyUserId !== userId) return res.status(403).json({ error: 'Only the counterparty can confirm' });
+
+  // Resolve the pledge
+  const creator = db.kywUsers[pledge.userId];
+  if (creator) {
+    const creatorPledge = creator.pledges.find(p => p.id === pledge.id);
+    if (creatorPledge) resolvePledge(creatorPledge, resolution, userId);
+  }
+
+  resolvePledge(pledge, resolution, userId);
+
+  // Update counter party's copy
+  const cpUser = db.kywUsers[userId];
+  if (cpUser) {
+    const cpPledge = cpUser.pledges.find(p => p.id === pledge.id);
+    if (cpPledge) resolvePledge(cpPledge, resolution, userId);
+  }
+
+  saveDB();
+  res.json({ ok: true, pledge, creatorScore: creator ? calculateSocialScore(creator) : null });
+});
+
+// ---- KYW: Self-pledge templates ----
+app.get('/api/kyw/templates', (req, res) => {
+  res.json(SELF_PLEDGE_TEMPLATES);
+});
+
+// ---- KYW: Verification types ----
+app.get('/api/kyw/verification-types', (req, res) => {
+  res.json(VERIFICATION_TYPES);
+});
+
+// ---- KYW: Pledges awaiting my acceptance (mutual) ----
+app.get('/api/kyw/pending', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token || !authTokens[token]) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = authTokens[token];
+  const user = db.kywUsers[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const pending = Object.values(db.pledges).filter(p =>
+    p.mode === 'mutual' &&
+    p.status === 'active' &&
+    !p.counterpartyAccepted &&
+    (p.counterpartyHandle || '').toLowerCase().replace('@', '') === user.handle.toLowerCase()
+  ).map(p => {
+    const creator = db.kywUsers[p.userId];
+    return {
+      ...p,
+      user: creator ? { handle: creator.handle, displayName: creator.displayName, provider: creator.provider, verified: creator.verified, score: calculateSocialScore(creator) } : null
+    };
+  });
+
+  res.json(pending);
 });
 
 // ---- Keep Your Word standalone page ----
