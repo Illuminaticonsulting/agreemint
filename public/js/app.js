@@ -2,6 +2,22 @@
  * AgreeMint -- Full-Featured AI Agreement Platform
  * Frontend Application (v2.0)
  */
+// Global error handler: show all JS errors as toast
+window.onerror = function(message, source, lineno, colno, error) {
+  var msg = '[JS Error] ' + message + ' at ' + (source||'') + ':' + lineno + ':' + colno;
+  try {
+    var c = document.getElementById('toast-container');
+    if (c) {
+      var t = document.createElement('div');
+      t.className = 'toast toast-error';
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(function(){ t.remove(); }, 8000);
+    }
+  } catch(e) {}
+  return false;
+};
+
 (function () {
   'use strict';
 
