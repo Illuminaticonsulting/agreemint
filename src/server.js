@@ -28,6 +28,9 @@ const { initStripe, createSubscriptionCheckout, createOneTimeCheckout, createTem
 const { PLATFORM_TEMPLATES, createTemplate, fillTemplate, addReview, recordPurchase, searchTemplates } = require('./marketplace-engine');
 const { handleInteraction, registerCommands, PER_USE_PRICING, verifyDiscordSignature } = require('./discord-bot');
 
+// ── E-Signature Engine ──
+const { SIGNATURE_METHODS, WORKFLOW_MODES, SIGNATURE_FONTS, SIGNING_AUDIT_ACTIONS, generateOTP, createSignerVerification, verifyOTP: verifySignerOTP, createSigningWorkflow, advanceWorkflow, getNextSigner, isSignersTurn, declineToSign, createReminder, getPendingSigners, createSignatureRecord, createSigningAuditEntry, getSignaturePadScript, getSigningPageFonts } = require('./esignature-engine');
+
 // ── Phase 3 Engines ──
 const { initPush, savePushSubscription, sendPushNotification, broadcastPush, PUSH_TEMPLATES, getManifest, getServiceWorkerScript, VAPID_PUBLIC } = require('./pwa-engine');
 const { SUPPORTED_CHAINS, generateSIWEMessage, verifySIWESignature, verifyPersonalSign, linkWallet, prepareEscrowDeposit, prepareTokenEscrowDeposit, prepareIPRegistrationTx, generateCryptoSigningMessage, verifyCryptoSignature, getWalletClientScript } = require('./wallet-engine');
@@ -58,7 +61,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ---- Data Store ----
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {}, disputes: {}, registeredUsers: {}, templates: {}, purchases: [], apiKeys: {}, pushSubscriptions: {}, wallets: {}, walletNonces: {}, legalProfessionals: {}, serviceRequests: {}, whitelabelTenants: {}, auditLogs: [], incidents: {}, dsarRequests: {} };
+let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {}, disputes: {}, registeredUsers: {}, templates: {}, purchases: [], apiKeys: {}, pushSubscriptions: {}, wallets: {}, walletNonces: {}, legalProfessionals: {}, serviceRequests: {}, whitelabelTenants: {}, auditLogs: [], incidents: {}, dsarRequests: {}, otpVerifications: {}, signingWorkflows: {} };
 
 function loadDB() {
   try {
@@ -86,6 +89,9 @@ function loadDB() {
       if (!db.auditLogs) db.auditLogs = [];
       if (!db.incidents) db.incidents = {};
       if (!db.dsarRequests) db.dsarRequests = {};
+      // E-Signature collections
+      if (!db.otpVerifications) db.otpVerifications = {};
+      if (!db.signingWorkflows) db.signingWorkflows = {};
     }
   } catch (e) {
     console.error('DB load error:', e.message);
@@ -459,7 +465,7 @@ app.post('/api/agreements/:id/sign', (req, res) => {
   const agreement = db.agreements[req.params.id];
   if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
 
-  const { name, email, token } = req.body;
+  const { name, email, token, method, signatureImage, typedText, fontId, consentToERecords } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
 
   // Verify token
@@ -475,9 +481,45 @@ app.post('/api/agreements/:id/sign', (req, res) => {
     return res.status(400).json({ error: 'Already signed by this party' });
   }
 
+  // Check signing workflow order (if sequential)
+  const workflow = db.signingWorkflows[agreement.id];
+  if (workflow && !isSignersTurn(workflow, email)) {
+    return res.status(400).json({ error: 'It is not your turn to sign yet. Please wait for preceding parties.' });
+  }
+
   const ip = req.ip || req.connection.remoteAddress;
-  const signature = signAgreement(agreement, { name, email, ip });
+  const userAgent = req.headers['user-agent'] || 'unknown';
+
+  // Create enhanced signature record
+  const signature = createSignatureRecord(agreement, {
+    name, email, ip, userAgent,
+    method: method || 'click',
+    signatureImage: signatureImage || null,
+    typedText: typedText || null,
+    fontId: fontId || null,
+    consentToERecords: consentToERecords === true
+  });
+
   agreement.signatures.push(signature);
+
+  // Update workflow step
+  if (workflow) {
+    const step = workflow.steps.find(s => s.email === email);
+    if (step) {
+      step.status = 'signed';
+      step.signedAt = signature.signedAt;
+    }
+    advanceWorkflow(workflow);
+    saveDB();
+  }
+
+  // Create signing audit entry
+  db.auditLogs.push(createSigningAuditEntry(SIGNING_AUDIT_ACTIONS.AGREEMENT_SIGNED, {
+    agreementId: agreement.id,
+    email, name, ip, userAgent,
+    method: method || 'click',
+    hasSignatureImage: !!signatureImage
+  }));
 
   // Check if all parties have signed
   const allSigned = agreement.parties.length > 0 &&
@@ -485,6 +527,11 @@ app.post('/api/agreements/:id/sign', (req, res) => {
 
   if (allSigned) {
     agreement.status = 'signed';
+
+    db.auditLogs.push(createSigningAuditEntry(SIGNING_AUDIT_ACTIONS.ALL_PARTIES_SIGNED, {
+      agreementId: agreement.id,
+      totalSignatures: agreement.signatures.length
+    }));
 
     // ── Auto-register as IP Asset on Story Protocol ──
     registerAgreementAsIP(agreement).then(result => {
@@ -503,7 +550,7 @@ app.post('/api/agreements/:id/sign', (req, res) => {
   }
 
   agreement.updatedAt = new Date().toISOString();
-  db.audit.push(createAuditEntry(agreement.id, 'SIGNED', email, { ip }));
+  db.audit.push(createAuditEntry(agreement.id, 'SIGNED', email, { ip, method: method || 'click' }));
   saveDB();
 
   // Notify other parties about the signature
@@ -2811,6 +2858,7 @@ app.get('/api/health', async (req, res) => {
     legalMarketplace: { enabled: true, professionals: Object.keys(db.legalProfessionals).length, verifiedPros: Object.values(db.legalProfessionals).filter(p => p.verified).length, serviceRequests: Object.keys(db.serviceRequests).length },
     whiteLabel: { enabled: true, tenants: Object.keys(db.whitelabelTenants).length },
     soc2: { enabled: true, complianceScore: calculateComplianceScore().score, auditLogs: db.auditLogs.length, openIncidents: Object.values(db.incidents).filter(i => i.status !== 'closed').length },
+    eSignature: { enabled: true, methods: Object.keys(SIGNATURE_METHODS).length, workflows: Object.keys(db.signingWorkflows).length },
     uptime: process.uptime()
   });
 });
@@ -2842,7 +2890,252 @@ app.get('/api/public/agreements/:id', (req, res) => {
     parties: agreement.parties,
     status: agreement.status,
     signatures: agreement.signatures.map(s => ({ name: s.name, signedAt: s.signedAt })),
-    jurisdiction: agreement.jurisdiction
+    jurisdiction: agreement.jurisdiction,
+    version: agreement.version || '1.0',
+    createdAt: agreement.createdAt
+  });
+});
+
+// ============================================================
+//   E-SIGNATURE ENDPOINTS
+// ============================================================
+
+// ---- Send OTP for signer identity verification ----
+app.post('/api/esign/send-otp', async (req, res) => {
+  const { agreementId, email, token: signingToken } = req.body;
+  if (!agreementId || !email) return res.status(400).json({ error: 'Agreement ID and email required' });
+
+  const agreement = db.agreements[agreementId];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  if (signingToken !== agreement.verificationToken) return res.status(403).json({ error: 'Invalid token' });
+
+  // Check party is in agreement
+  const isParty = agreement.parties.some(p => p.email === email);
+  if (!isParty) return res.status(403).json({ error: 'Email not found in agreement parties' });
+
+  const verification = createSignerVerification(email);
+  db.otpVerifications[`${agreementId}:${email}`] = verification;
+
+  db.auditLogs.push(createSigningAuditEntry(SIGNING_AUDIT_ACTIONS.OTP_REQUESTED, {
+    agreementId, email
+  }));
+
+  // Send OTP via email
+  try {
+    const { sendEmail } = require('./notification-engine');
+    await sendEmail(
+      email,
+      `Your AgreeMint verification code: ${verification.otp}`,
+      `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#12121a;color:#e4e4e7;border-radius:12px;">
+        <h2 style="color:#6366f1;margin-bottom:16px;">&#128274; Verification Code</h2>
+        <p>Your verification code for signing <strong>"${agreement.title}"</strong> is:</p>
+        <div style="font-size:36px;letter-spacing:12px;font-weight:700;text-align:center;padding:24px;background:#0a0a0f;border-radius:8px;margin:20px 0;color:#6366f1;">${verification.otp}</div>
+        <p style="font-size:13px;color:#a1a1aa;">This code expires in 10 minutes. Do not share it with anyone.</p>
+        <p style="margin-top:20px;font-size:12px;color:#71717a;">&mdash; AgreeMint</p>
+      </div>`,
+      `Your AgreeMint verification code is: ${verification.otp}. This code expires in 10 minutes.`
+    );
+  } catch (e) {
+    console.log(`[esign] OTP for ${email}: ${verification.otp} (email send failed: ${e.message})`);
+  }
+
+  saveDB();
+  res.json({ ok: true, message: 'Verification code sent to your email' });
+});
+
+// ---- Verify OTP ----
+app.post('/api/esign/verify-otp', (req, res) => {
+  const { agreementId, email, otp, token: signingToken } = req.body;
+  if (!agreementId || !email || !otp) return res.status(400).json({ error: 'Agreement ID, email, and OTP required' });
+
+  const agreement = db.agreements[agreementId];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  if (signingToken !== agreement.verificationToken) return res.status(403).json({ error: 'Invalid token' });
+
+  const key = `${agreementId}:${email}`;
+  const verification = db.otpVerifications[key];
+  if (!verification) return res.status(400).json({ error: 'No verification pending. Request a new code.' });
+
+  const result = verifySignerOTP(verification, otp);
+  db.otpVerifications[key] = verification;
+
+  db.auditLogs.push(createSigningAuditEntry(
+    result.valid ? SIGNING_AUDIT_ACTIONS.OTP_VERIFIED : SIGNING_AUDIT_ACTIONS.OTP_FAILED,
+    { agreementId, email, valid: result.valid }
+  ));
+
+  saveDB();
+
+  if (!result.valid) return res.status(400).json({ error: result.reason });
+  res.json({ ok: true, verified: true });
+});
+
+// ---- Decline to Sign ----
+app.post('/api/agreements/:id/decline', async (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+
+  const { token: signingToken, email, name, reason } = req.body;
+
+  // Verify token
+  if (signingToken !== agreement.verificationToken) {
+    return res.status(403).json({ error: 'Invalid signing token' });
+  }
+
+  // Record the decline
+  if (!agreement.declines) agreement.declines = [];
+  const decline = {
+    name: name || 'Unknown',
+    email: email || 'Unknown',
+    reason: reason || 'No reason provided',
+    declinedAt: new Date().toISOString(),
+    ip: req.ip || req.connection.remoteAddress,
+    userAgent: req.headers['user-agent'] || 'unknown'
+  };
+  agreement.declines.push(decline);
+
+  // Update workflow if exists
+  const workflow = db.signingWorkflows[agreement.id];
+  if (workflow) {
+    try { declineToSign(agreement, workflow, email, reason); } catch (e) { /* already handled */ }
+  }
+
+  db.auditLogs.push(createSigningAuditEntry(SIGNING_AUDIT_ACTIONS.AGREEMENT_DECLINED, {
+    agreementId: agreement.id, email, name, reason
+  }));
+
+  db.audit.push(createAuditEntry(agreement.id, 'DECLINED', email, { reason }));
+  agreement.updatedAt = new Date().toISOString();
+  saveDB();
+
+  // Notify the agreement owner
+  try {
+    const { sendEmail } = require('./notification-engine');
+    const ownerEmail = agreement.parties[0]?.email;
+    if (ownerEmail) {
+      await sendEmail(
+        ownerEmail,
+        `Signing Declined: ${agreement.title}`,
+        `<div style="font-family:sans-serif;padding:20px;"><h2 style="color:#ef4444;">Signature Declined</h2><p><strong>${name || email}</strong> has declined to sign <strong>"${agreement.title}"</strong>.</p>${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}<p style="font-size:12px;color:#999;margin-top:16px;">— AgreeMint</p></div>`,
+        `${name || email} has declined to sign "${agreement.title}". ${reason ? 'Reason: ' + reason : ''}`
+      );
+    }
+  } catch (e) {
+    console.error('[esign] Decline notification error:', e.message);
+  }
+
+  res.json({ ok: true, declined: true });
+});
+
+// ---- Create/Configure Signing Workflow ----
+app.post('/api/agreements/:id/workflow', requireAuth, (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+
+  const { mode, order } = req.body;
+  const workflow = createSigningWorkflow(agreement, mode || 'parallel', order || []);
+  db.signingWorkflows[agreement.id] = workflow;
+
+  db.auditLogs.push(createSigningAuditEntry(SIGNING_AUDIT_ACTIONS.WORKFLOW_ADVANCED, {
+    agreementId: agreement.id, mode: workflow.mode
+  }));
+
+  saveDB();
+  res.json({ ok: true, workflow });
+});
+
+// ---- Get Signing Workflow ----
+app.get('/api/agreements/:id/workflow', requireAuth, (req, res) => {
+  const workflow = db.signingWorkflows[req.params.id];
+  if (!workflow) return res.json({ workflow: null, message: 'No workflow configured (default: parallel)' });
+  res.json({ workflow });
+});
+
+// ---- Send Signing Reminder ----
+app.post('/api/agreements/:id/remind', requireAuth, async (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+
+  const { email } = req.body;
+  const workflow = db.signingWorkflows[agreement.id];
+
+  // Find the party to remind
+  const party = agreement.parties.find(p => p.email === email);
+  if (!party) return res.status(400).json({ error: 'Email not found in agreement parties' });
+
+  // Check if already signed
+  const alreadySigned = agreement.signatures.some(s => (s.signerEmail || s.email) === email);
+  if (alreadySigned) return res.status(400).json({ error: 'This party has already signed' });
+
+  // Record reminder
+  if (workflow) createReminder(workflow, email);
+
+  db.auditLogs.push(createSigningAuditEntry(SIGNING_AUDIT_ACTIONS.REMINDER_SENT, {
+    agreementId: agreement.id, email
+  }));
+
+  // Send reminder email
+  try {
+    const { sendEmail } = require('./notification-engine');
+    const signUrl = `${req.protocol}://${req.get('host')}/sign/${agreement.id}?token=${agreement.verificationToken}`;
+    await sendEmail(
+      email,
+      `Reminder: Please sign "${agreement.title}"`,
+      `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#12121a;color:#e4e4e7;border-radius:12px;">
+        <h2 style="color:#6366f1;">&#128276; Signing Reminder</h2>
+        <p>You have a pending agreement waiting for your signature:</p>
+        <div style="padding:16px;background:#0a0a0f;border-radius:8px;margin:16px 0;">
+          <strong>${agreement.title}</strong><br>
+          <span style="color:#a1a1aa;font-size:13px;">${agreement.type} | ${agreement.jurisdiction}</span>
+        </div>
+        <a href="${signUrl}" style="display:inline-block;padding:12px 28px;background:#6366f1;color:white;border-radius:8px;text-decoration:none;font-weight:600;margin-top:8px;">Review & Sign</a>
+        <p style="margin-top:20px;font-size:12px;color:#71717a;">&mdash; AgreeMint</p>
+      </div>`,
+      `Reminder: You have a pending agreement "${agreement.title}" waiting for your signature.`
+    );
+  } catch (e) {
+    console.error('[esign] Reminder email error:', e.message);
+  }
+
+  saveDB();
+  res.json({ ok: true, message: `Reminder sent to ${email}` });
+});
+
+// ---- Get Pending Signers ----
+app.get('/api/agreements/:id/pending-signers', requireAuth, (req, res) => {
+  const agreement = db.agreements[req.params.id];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+
+  const signed = agreement.signatures.map(s => s.signerEmail || s.email);
+  const pending = agreement.parties.filter(p => !signed.includes(p.email));
+  const declined = agreement.declines || [];
+
+  res.json({
+    total: agreement.parties.length,
+    signed: signed.length,
+    pending: pending.map(p => ({ name: p.name, email: p.email })),
+    declined: declined.map(d => ({ name: d.name, email: d.email, reason: d.reason, declinedAt: d.declinedAt }))
+  });
+});
+
+// ---- E-Signature Config (available methods, fonts) ----
+app.get('/api/esign/config', (req, res) => {
+  res.json({
+    methods: SIGNATURE_METHODS,
+    fonts: SIGNATURE_FONTS,
+    workflowModes: WORKFLOW_MODES,
+    features: {
+      drawSignature: true,
+      typeSignature: true,
+      uploadSignature: true,
+      walletSignature: true,
+      otpVerification: true,
+      signingWorkflow: true,
+      declineToSign: true,
+      signingReminders: true,
+      auditTrail: true,
+      esignCompliance: true
+    }
   });
 });
 
@@ -2884,5 +3177,6 @@ app.listen(PORT, () => {
   console.log(`  Story Proto: ${process.env.STORY_RPC_URL ? 'Configured' : 'Default (Odyssey)'}`);
   console.log(`  Stripe:      ${process.env.STRIPE_SECRET_KEY ? 'ENABLED' : 'disabled (set STRIPE_SECRET_KEY)'}`);
   console.log(`  Discord:     ${process.env.DISCORD_BOT_TOKEN ? 'ENABLED' : 'disabled (set DISCORD_BOT_TOKEN)'}`);
+  console.log(`  E-Signature: ENABLED (${Object.keys(SIGNATURE_METHODS).length} methods, OTP verification, workflows)`);
   console.log('');
 });

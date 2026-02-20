@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign Agreement - AgreeMint</title>
+  <!-- Cursive signature fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Allura&family=Parisienne&family=Great+Vibes&family=Sacramento&family=Alex+Brush&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -16,6 +19,7 @@
       --accent: #6366f1;
       --green: #22c55e;
       --red: #ef4444;
+      --orange: #f59e0b;
       --border: #27272a;
       --radius: 12px;
     }
@@ -40,23 +44,103 @@
     .content-body p { margin-bottom: 12px; }
     .content-body ul, .content-body ol { padding-left: 24px; margin-bottom: 12px; }
     .content-body li { margin-bottom: 4px; }
-    .sign-section { text-align: center; padding: 32px; background: var(--bg-tertiary); border-radius: var(--radius); }
-    .sign-section h2 { margin-bottom: 8px; }
+    .sign-section { padding: 32px; background: var(--bg-tertiary); border-radius: var(--radius); }
+    .sign-section h2 { margin-bottom: 8px; text-align: center; }
     .form-input { width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
     .form-input:focus { border-color: var(--accent); }
     .btn { padding: 12px 28px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
     .btn-primary { background: var(--accent); color: white; }
     .btn-primary:hover { opacity: 0.9; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 16px 0; font-size: 14px; }
-    .checkbox-row input { accent-color: var(--accent); width: 18px; height: 18px; }
+    .btn-danger { background: var(--red); color: white; }
+    .btn-danger:hover { opacity: 0.9; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+    .btn-outline:hover { border-color: var(--text-muted); }
+    .btn-sm { padding: 8px 16px; font-size: 12px; }
+    .checkbox-row { display: flex; align-items: flex-start; gap: 8px; margin: 16px 0; font-size: 14px; }
+    .checkbox-row input { accent-color: var(--accent); width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; }
     .signed-badge { background: var(--green); color: white; padding: 8px 20px; border-radius: 8px; display: inline-block; font-weight: 600; }
     .error-msg { background: #ef444420; border: 1px solid var(--red); border-radius: 8px; padding: 16px; color: var(--red); margin-bottom: 16px; display: none; }
+    .success-msg { background: #22c55e20; border: 1px solid var(--green); border-radius: 8px; padding: 16px; color: var(--green); margin-bottom: 16px; display: none; }
     .footer { text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); }
     .loading { text-align: center; padding: 60px; }
     .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; margin: 0 auto 12px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    @media (max-width: 600px) { .detail-grid { grid-template-columns: 1fr; } .container { padding: 0 16px; margin: 20px auto; } .card { padding: 20px; } }
+
+    /* ─── Signature Method Tabs ─── */
+    .sig-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--bg); border-radius: 10px; padding: 4px; }
+    .sig-tab { flex: 1; padding: 10px 8px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 8px; font-size: 13px; font-weight: 500; transition: all 0.2s; text-align: center; }
+    .sig-tab:hover { color: var(--text-secondary); }
+    .sig-tab.active { background: var(--accent); color: white; }
+    .sig-panel { display: none; }
+    .sig-panel.active { display: block; }
+
+    /* ─── Signature Canvas ─── */
+    .sig-canvas-wrap { position: relative; margin-bottom: 16px; }
+    .sig-canvas { width: 100%; height: 200px; background: white; border-radius: 8px; cursor: crosshair; touch-action: none; }
+    .sig-canvas-label { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #999; pointer-events: none; }
+    .sig-canvas-line { position: absolute; bottom: 45px; left: 20px; right: 20px; border-bottom: 1px dashed #ccc; pointer-events: none; }
+    .sig-canvas-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ─── Typed Signature ─── */
+    .sig-typed-preview { width: 100%; height: 100px; background: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+    .sig-typed-text { font-size: 42px; color: #1a1a2e; }
+    .sig-font-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .sig-font-option { padding: 12px; background: var(--bg); border: 2px solid var(--border); border-radius: 8px; cursor: pointer; text-align: center; transition: border-color 0.2s; font-size: 22px; color: var(--text); }
+    .sig-font-option:hover { border-color: var(--text-muted); }
+    .sig-font-option.selected { border-color: var(--accent); background: rgba(99,102,241,0.1); }
+
+    /* ─── Upload Signature ─── */
+    .sig-upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+    .sig-upload-zone:hover { border-color: var(--accent); }
+    .sig-upload-zone.has-file { border-style: solid; border-color: var(--green); }
+    .sig-upload-preview { max-width: 300px; max-height: 120px; margin: 12px auto; display: none; border-radius: 8px; }
+
+    /* ─── OTP Verification ─── */
+    .otp-section { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+    .otp-input-group { display: flex; gap: 8px; align-items: center; }
+    .otp-input { width: 120px; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 18px; letter-spacing: 8px; text-align: center; outline: none; }
+    .otp-input:focus { border-color: var(--accent); }
+    .otp-verified { color: var(--green); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+
+    /* ─── Signature Preview ─── */
+    .sig-preview-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 16px 0; text-align: center; }
+    .sig-preview-box img { max-height: 80px; }
+
+    /* ─── Steps ─── */
+    .steps { display: flex; gap: 0; margin-bottom: 28px; }
+    .step { flex: 1; text-align: center; position: relative; padding-bottom: 20px; }
+    .step::after { content: ''; position: absolute; bottom: 8px; left: 50%; right: -50%; height: 2px; background: var(--border); }
+    .step:last-child::after { display: none; }
+    .step.active::after { background: var(--accent); }
+    .step.done::after { background: var(--green); }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--bg); border: 2px solid var(--border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+    .step.active .step-num { border-color: var(--accent); color: var(--accent); }
+    .step.done .step-num { border-color: var(--green); background: var(--green); color: white; }
+    .step-label { font-size: 11px; color: var(--text-muted); }
+    .step.active .step-label { color: var(--accent); }
+    .step.done .step-label { color: var(--green); }
+
+    /* ─── Decline Modal ─── */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; max-width: 480px; width: 90%; }
+    .modal h2 { color: var(--red); }
+    .modal textarea { width: 100%; height: 100px; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; resize: vertical; outline: none; margin: 12px 0; }
+    .modal textarea:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
+
+    @media (max-width: 600px) {
+      .detail-grid { grid-template-columns: 1fr; }
+      .container { padding: 0 16px; margin: 20px auto; }
+      .card { padding: 20px; }
+      .sig-tabs { flex-wrap: wrap; }
+      .sig-tab { min-width: 45%; }
+      .sig-font-grid { grid-template-columns: 1fr; }
+      .steps { flex-wrap: wrap; gap: 8px; }
+      .step::after { display: none; }
+      .otp-input-group { flex-direction: column; }
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -74,17 +158,94 @@
     </div>
   </main>
 
+  <!-- Decline Modal -->
+  <div class="modal-overlay" id="decline-modal">
+    <div class="modal">
+      <h2>&#9888; Decline to Sign</h2>
+      <p style="margin:12px 0;">You are about to formally decline to sign this agreement. This action will be recorded and the sender will be notified.</p>
+      <textarea id="decline-reason" placeholder="Please provide a reason for declining (optional)..."></textarea>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeDeclineModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmDecline()">Decline to Sign</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="footer">
-    Cryptographically verified by AgreeMint | Documents are hashed with SHA-256
+    Cryptographically verified by AgreeMint | SHA-256 hashed &amp; ESIGN Act compliant
   </footer>
 
   <script>
+    // ─── Signature Pad Class ───────────────────────────
+    class SignaturePad {
+      constructor(canvas, options = {}) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.drawing = false;
+        this.points = [];
+        this.strokes = [];
+        this._isEmpty = true;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        this.ctx.scale(dpr, dpr);
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+
+        this.ctx.strokeStyle = options.penColor || '#1a1a2e';
+        this.ctx.lineWidth = options.penWidth || 2.5;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+
+        canvas.addEventListener('mousedown', e => this._start(e));
+        canvas.addEventListener('mousemove', e => this._move(e));
+        canvas.addEventListener('mouseup', () => this._end());
+        canvas.addEventListener('mouseleave', () => this._end());
+        canvas.addEventListener('touchstart', e => { e.preventDefault(); this._start(e.touches[0]); }, { passive: false });
+        canvas.addEventListener('touchmove', e => { e.preventDefault(); this._move(e.touches[0]); }, { passive: false });
+        canvas.addEventListener('touchend', e => { e.preventDefault(); this._end(); }, { passive: false });
+      }
+      _pos(e) { const r = this.canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+      _start(e) { this.drawing = true; this.points = [this._pos(e)]; this._isEmpty = false; this._onChange(); }
+      _move(e) {
+        if (!this.drawing) return;
+        const p = this._pos(e); this.points.push(p);
+        this.ctx.beginPath();
+        if (this.points.length > 1) {
+          const prev = this.points[this.points.length - 2];
+          this.ctx.moveTo(prev.x, prev.y); this.ctx.lineTo(p.x, p.y);
+        }
+        this.ctx.stroke();
+      }
+      _end() { if (!this.drawing) return; this.drawing = false; this.strokes.push([...this.points]); this.points = []; }
+      _onChange() { if (this.onChange) this.onChange(); }
+      clear() {
+        const dpr = window.devicePixelRatio || 1;
+        this.ctx.clearRect(0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
+        this.strokes = []; this.points = []; this._isEmpty = true; this._onChange();
+      }
+      toDataURL(type = 'image/png') { return this._isEmpty ? null : this.canvas.toDataURL(type); }
+      isEmpty() { return this._isEmpty; }
+    }
+
+    // ─── State ─────────────────────────────────────────
+    let agreementId, token, agreementData;
+    let signaturePad = null;
+    let selectedFont = 'dancing';
+    let uploadedImageData = null;
+    let otpVerified = false;
+    let currentStep = 1; // 1=Identity, 2=Verify, 3=Sign
+    let sigMethod = 'draw';
+
+    // ─── Main ──────────────────────────────────────────
     (async function() {
       const main = document.getElementById('main');
       const pathParts = window.location.pathname.split('/');
-      const agreementId = pathParts[pathParts.length - 1];
+      agreementId = pathParts[pathParts.length - 1];
       const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
+      token = params.get('token');
 
       if (!agreementId || !token) {
         main.innerHTML = '<div class="card" style="text-align:center;"><h1>Invalid Link</h1><p style="margin-top:12px;">This signing link is missing required parameters.</p></div>';
@@ -92,117 +253,501 @@
       }
 
       try {
-        const res = await fetch(`/api/public/agreements/${agreementId}?token=${token}`);
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to load agreement');
-        }
-        const data = await res.json();
-        const a = data;
-        const contentHtml = marked.parse(a.content);
-
-        main.innerHTML = `
-          <div class="card">
-            <h1>${esc(a.title)}</h1>
-            <p style="margin-bottom:20px;">${a.type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} | ${a.jurisdiction}</p>
-            <div class="detail-grid">
-              <div class="detail-item">
-                <div class="detail-label">Status</div>
-                <div class="detail-value">${a.status.toUpperCase()}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">Version</div>
-                <div class="detail-value">${a.version}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">Created</div>
-                <div class="detail-value">${new Date(a.createdAt).toLocaleDateString()}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">Parties</div>
-                <div class="detail-value">${a.parties.map(p => p.name).join(', ')}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <h2>Agreement Content</h2>
-            <div class="content-body">${contentHtml}</div>
-          </div>
-
-          <div class="card">
-            <div class="error-msg" id="sign-error"></div>
-            ${a.status === 'signed' ? '<div style="text-align:center;"><span class="signed-badge">&#10004; Fully Executed</span><p style="margin-top:12px;">This agreement has been signed by all parties.</p></div>' : `
-              <div class="sign-section">
-                <h2>&#9998; Sign This Agreement</h2>
-                <p style="margin-bottom:20px;">By signing, you agree to the terms outlined in this agreement.</p>
-                <div style="max-width:400px;margin:0 auto;">
-                  <input class="form-input" id="sign-name" placeholder="Your full legal name" style="margin-bottom:12px;">
-                  <input class="form-input" id="sign-email" placeholder="Your email address" style="margin-bottom:12px;">
-                  <div class="checkbox-row" style="justify-content:center;">
-                    <input type="checkbox" id="sign-agree">
-                    <label for="sign-agree">I have read and agree to this agreement</label>
-                  </div>
-                  <button class="btn btn-primary" id="sign-btn" onclick="signDocument()" disabled style="margin-top:12px;">Sign Agreement</button>
-                </div>
-              </div>
-            `}
-          </div>
-        `;
-
-        const checkbox = document.getElementById('sign-agree');
-        const signBtn = document.getElementById('sign-btn');
-        if (checkbox && signBtn) {
-          checkbox.addEventListener('change', () => { signBtn.disabled = !checkbox.checked; });
-        }
+        const res = await fetch('/api/public/agreements/' + agreementId + '?token=' + token);
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to load agreement'); }
+        agreementData = await res.json();
+        renderAgreement(agreementData);
       } catch (err) {
-        main.innerHTML = `<div class="card" style="text-align:center;"><h1>&#9888; Error</h1><p style="margin-top:12px;">${esc(err.message)}</p></div>`;
-      }
-
-      window.signDocument = async function() {
-        const name = document.getElementById('sign-name').value.trim();
-        const email = document.getElementById('sign-email').value.trim();
-        const errEl = document.getElementById('sign-error');
-
-        if (!name || !email) {
-          errEl.textContent = 'Please enter your name and email.';
-          errEl.style.display = 'block';
-          return;
-        }
-
-        const btn = document.getElementById('sign-btn');
-        btn.disabled = true;
-        btn.textContent = 'Signing...';
-
-        try {
-          const res = await fetch(`/api/agreements/${agreementId}/sign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, name, email })
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Signing failed');
-
-          btn.parentElement.parentElement.innerHTML = `
-            <div style="text-align:center;">
-              <span class="signed-badge">&#10004; Signed Successfully</span>
-              <p style="margin-top:12px;">Your signature has been recorded and cryptographically verified.</p>
-              <p style="margin-top:8px;font-size:12px;color:var(--text-muted);">Signature hash: ${data.signature ? data.signature.hash : 'verified'}</p>
-            </div>
-          `;
-        } catch (err) {
-          errEl.textContent = err.message;
-          errEl.style.display = 'block';
-          btn.disabled = false;
-          btn.textContent = 'Sign Agreement';
-        }
-      };
-
-      function esc(s) {
-        if (!s) return '';
-        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        main.innerHTML = '<div class="card" style="text-align:center;"><h1>&#9888; Error</h1><p style="margin-top:12px;">' + esc(err.message) + '</p></div>';
       }
     })();
+
+    function renderAgreement(a) {
+      const main = document.getElementById('main');
+      const contentHtml = marked.parse(a.content || '');
+
+      main.innerHTML =
+        '<div class="card">' +
+          '<h1>' + esc(a.title) + '</h1>' +
+          '<p style="margin-bottom:20px;">' + a.type.replace(/-/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); }) + ' | ' + a.jurisdiction + '</p>' +
+          '<div class="detail-grid">' +
+            '<div class="detail-item"><div class="detail-label">Status</div><div class="detail-value">' + a.status.toUpperCase() + '</div></div>' +
+            '<div class="detail-item"><div class="detail-label">Version</div><div class="detail-value">' + a.version + '</div></div>' +
+            '<div class="detail-item"><div class="detail-label">Created</div><div class="detail-value">' + new Date(a.createdAt).toLocaleDateString() + '</div></div>' +
+            '<div class="detail-item"><div class="detail-label">Parties</div><div class="detail-value">' + a.parties.map(function(p) { return p.name; }).join(', ') + '</div></div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="card">' +
+          '<h2>Agreement Content</h2>' +
+          '<div class="content-body">' + contentHtml + '</div>' +
+        '</div>' +
+
+        '<div class="card" id="sign-card">' +
+          '<div class="error-msg" id="sign-error"></div>' +
+          '<div class="success-msg" id="sign-success"></div>' +
+          (a.status === 'signed'
+            ? '<div style="text-align:center;"><span class="signed-badge">&#10004; Fully Executed</span><p style="margin-top:12px;">This agreement has been signed by all parties.</p></div>'
+            : buildSigningUI()) +
+        '</div>';
+
+      if (a.status !== 'signed') {
+        initSigningUI();
+      }
+    }
+
+    function buildSigningUI() {
+      return '<div class="sign-section">' +
+        '<h2>&#9998; Sign This Agreement</h2>' +
+        '<p style="margin-bottom:24px;text-align:center;">Complete the steps below to apply your electronic signature.</p>' +
+
+        /* Steps indicator */
+        '<div class="steps">' +
+          '<div class="step active" id="step-ind-1"><span class="step-num">1</span><div class="step-label">Identity</div></div>' +
+          '<div class="step" id="step-ind-2"><span class="step-num">2</span><div class="step-label">Verify</div></div>' +
+          '<div class="step" id="step-ind-3"><span class="step-num">3</span><div class="step-label">Sign</div></div>' +
+        '</div>' +
+
+        /* Step 1: Identity */
+        '<div id="step-1" class="step-content">' +
+          '<h3 style="color:var(--text);margin-bottom:16px;">Your Information</h3>' +
+          '<div style="max-width:400px;margin:0 auto;">' +
+            '<input class="form-input" id="sign-name" placeholder="Your full legal name" style="margin-bottom:12px;" autocomplete="name">' +
+            '<input class="form-input" id="sign-email" placeholder="Your email address" type="email" style="margin-bottom:16px;" autocomplete="email">' +
+            '<button class="btn btn-primary" style="width:100%;" onclick="goToStep2()">Continue to Verification</button>' +
+          '</div>' +
+        '</div>' +
+
+        /* Step 2: OTP Verification */
+        '<div id="step-2" class="step-content" style="display:none;">' +
+          '<div class="otp-section">' +
+            '<h3 style="color:var(--text);margin-bottom:8px;">&#128274; Verify Your Identity</h3>' +
+            '<p style="margin-bottom:16px;font-size:13px;">We\'ll send a 6-digit code to your email to verify your identity.</p>' +
+            '<div style="text-align:center;">' +
+              '<button class="btn btn-primary btn-sm" id="send-otp-btn" onclick="sendOTP()">Send Verification Code</button>' +
+              '<div id="otp-input-area" style="display:none;margin-top:16px;">' +
+                '<p style="font-size:13px;margin-bottom:12px;">Enter the 6-digit code sent to <strong id="otp-email-display"></strong></p>' +
+                '<div class="otp-input-group" style="justify-content:center;">' +
+                  '<input class="otp-input" id="otp-code" maxlength="6" placeholder="000000" inputmode="numeric" pattern="[0-9]*">' +
+                  '<button class="btn btn-primary btn-sm" onclick="verifyOTP()">Verify</button>' +
+                '</div>' +
+                '<p style="margin-top:8px;font-size:12px;color:var(--text-muted);">Didn\'t receive it? <a href="#" onclick="sendOTP();return false;" style="color:var(--accent);">Resend code</a></p>' +
+              '</div>' +
+              '<div id="otp-verified-msg" style="display:none;margin-top:16px;">' +
+                '<span class="otp-verified">&#10004; Identity Verified</span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:12px;margin-top:16px;">' +
+            '<button class="btn btn-outline" onclick="goToStep(1)">&#8592; Back</button>' +
+            '<button class="btn btn-primary" id="to-step-3-btn" style="flex:1;" onclick="goToStep3()" disabled>Continue to Signature</button>' +
+          '</div>' +
+        '</div>' +
+
+        /* Step 3: Signature */
+        '<div id="step-3" class="step-content" style="display:none;">' +
+          /* Signature method tabs */
+          '<div class="sig-tabs">' +
+            '<button class="sig-tab active" data-method="draw" onclick="switchSigMethod(\'draw\')">&#9998; Draw</button>' +
+            '<button class="sig-tab" data-method="type" onclick="switchSigMethod(\'type\')">&#9000; Type</button>' +
+            '<button class="sig-tab" data-method="upload" onclick="switchSigMethod(\'upload\')">&#128228; Upload</button>' +
+          '</div>' +
+
+          /* Draw panel */
+          '<div class="sig-panel active" id="panel-draw">' +
+            '<div class="sig-canvas-wrap">' +
+              '<canvas class="sig-canvas" id="sig-canvas"></canvas>' +
+              '<div class="sig-canvas-line"></div>' +
+              '<div class="sig-canvas-label">Sign above this line</div>' +
+            '</div>' +
+            '<div class="sig-canvas-actions">' +
+              '<button class="btn btn-outline btn-sm" onclick="clearCanvas()">Clear</button>' +
+            '</div>' +
+          '</div>' +
+
+          /* Type panel */
+          '<div class="sig-panel" id="panel-type">' +
+            '<input class="form-input" id="sig-type-input" placeholder="Type your full name..." style="margin-bottom:12px;" oninput="updateTypedPreview()">' +
+            '<div class="sig-typed-preview" id="sig-typed-preview">' +
+              '<span class="sig-typed-text" id="sig-typed-text" style="font-family:\'Dancing Script\',cursive;">Your Name</span>' +
+            '</div>' +
+            '<div class="sig-font-grid">' +
+              '<div class="sig-font-option selected" data-font="dancing" onclick="selectFont(\'dancing\')" style="font-family:\'Dancing Script\',cursive;">Signature</div>' +
+              '<div class="sig-font-option" data-font="allura" onclick="selectFont(\'allura\')" style="font-family:\'Allura\',cursive;">Signature</div>' +
+              '<div class="sig-font-option" data-font="greatvibes" onclick="selectFont(\'greatvibes\')" style="font-family:\'Great Vibes\',cursive;">Signature</div>' +
+              '<div class="sig-font-option" data-font="sacramento" onclick="selectFont(\'sacramento\')" style="font-family:\'Sacramento\',cursive;">Signature</div>' +
+              '<div class="sig-font-option" data-font="parisienne" onclick="selectFont(\'parisienne\')" style="font-family:\'Parisienne\',cursive;">Signature</div>' +
+              '<div class="sig-font-option" data-font="alex" onclick="selectFont(\'alex\')" style="font-family:\'Alex Brush\',cursive;">Signature</div>' +
+            '</div>' +
+          '</div>' +
+
+          /* Upload panel */
+          '<div class="sig-panel" id="panel-upload">' +
+            '<div class="sig-upload-zone" id="upload-zone" onclick="document.getElementById(\'sig-file-input\').click();">' +
+              '<p style="font-size:32px;margin-bottom:8px;">&#128228;</p>' +
+              '<p style="font-weight:600;">Click or drag to upload signature image</p>' +
+              '<p style="font-size:12px;color:var(--text-muted);margin-top:4px;">PNG, JPG, or SVG — max 2MB</p>' +
+              '<img class="sig-upload-preview" id="upload-preview">' +
+            '</div>' +
+            '<input type="file" id="sig-file-input" accept="image/png,image/jpeg,image/svg+xml" style="display:none;" onchange="handleFileUpload(this)">' +
+          '</div>' +
+
+          /* Consent + Sign */
+          '<div style="margin-top:20px;">' +
+            '<div class="checkbox-row">' +
+              '<input type="checkbox" id="sign-consent">' +
+              '<label for="sign-consent" style="font-size:13px;color:var(--text-secondary);line-height:1.5;">I consent to sign this agreement electronically. I understand that my electronic signature has the same legal effect as a handwritten signature under the ESIGN Act (15 U.S.C. &sect; 7001) and UETA.</label>' +
+            '</div>' +
+            '<div class="checkbox-row">' +
+              '<input type="checkbox" id="sign-agree">' +
+              '<label for="sign-agree" style="font-size:13px;color:var(--text-secondary);line-height:1.5;">I have read, understand, and agree to be bound by the terms of this agreement.</label>' +
+            '</div>' +
+          '</div>' +
+
+          '<div style="display:flex;gap:12px;margin-top:20px;">' +
+            '<button class="btn btn-outline" onclick="goToStep(2)">&#8592; Back</button>' +
+            '<button class="btn btn-primary" id="sign-btn" style="flex:1;" onclick="signDocument()" disabled>Apply Signature</button>' +
+          '</div>' +
+
+          '<div style="text-align:center;margin-top:16px;">' +
+            '<button class="btn btn-sm" style="background:transparent;color:var(--text-muted);border:none;cursor:pointer;text-decoration:underline;" onclick="openDeclineModal()">Decline to Sign</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    // ─── Initialize Signing UI ─────────────────────────
+    function initSigningUI() {
+      setTimeout(function() {
+        const canvas = document.getElementById('sig-canvas');
+        if (canvas) {
+          signaturePad = new SignaturePad(canvas);
+          signaturePad.onChange = updateSignButtonState;
+        }
+
+        const consent = document.getElementById('sign-consent');
+        const agree = document.getElementById('sign-agree');
+        if (consent) consent.addEventListener('change', updateSignButtonState);
+        if (agree) agree.addEventListener('change', updateSignButtonState);
+
+        // Drag and drop for upload
+        const zone = document.getElementById('upload-zone');
+        if (zone) {
+          zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; });
+          zone.addEventListener('dragleave', function() { zone.style.borderColor = ''; });
+          zone.addEventListener('drop', function(e) {
+            e.preventDefault(); zone.style.borderColor = '';
+            if (e.dataTransfer.files.length) handleFileObj(e.dataTransfer.files[0]);
+          });
+        }
+      }, 100);
+    }
+
+    // ─── Step Navigation ───────────────────────────────
+    function goToStep(n) {
+      currentStep = n;
+      for (var i = 1; i <= 3; i++) {
+        var el = document.getElementById('step-' + i);
+        if (el) el.style.display = i === n ? 'block' : 'none';
+        var ind = document.getElementById('step-ind-' + i);
+        if (ind) {
+          ind.className = 'step' + (i < n ? ' done' : '') + (i === n ? ' active' : '');
+        }
+      }
+    }
+
+    function goToStep2() {
+      var name = document.getElementById('sign-name').value.trim();
+      var email = document.getElementById('sign-email').value.trim();
+      if (!name || !email) { showError('Please enter your full legal name and email address.'); return; }
+      if (!email.includes('@')) { showError('Please enter a valid email address.'); return; }
+      hideError();
+      goToStep(2);
+    }
+
+    function goToStep3() {
+      if (!otpVerified) { showError('Please verify your identity first.'); return; }
+      hideError();
+      goToStep(3);
+      // Re-initialize canvas if needed
+      setTimeout(function() {
+        var canvas = document.getElementById('sig-canvas');
+        if (canvas && !signaturePad) {
+          signaturePad = new SignaturePad(canvas);
+          signaturePad.onChange = updateSignButtonState;
+        }
+      }, 50);
+    }
+
+    // ─── OTP ───────────────────────────────────────────
+    async function sendOTP() {
+      var email = document.getElementById('sign-email').value.trim();
+      var btn = document.getElementById('send-otp-btn');
+      btn.disabled = true; btn.textContent = 'Sending...';
+
+      try {
+        var res = await fetch('/api/esign/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agreementId: agreementId, email: email, token: token })
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to send OTP');
+
+        document.getElementById('otp-email-display').textContent = email;
+        document.getElementById('otp-input-area').style.display = 'block';
+        btn.textContent = 'Code Sent ✓';
+      } catch (err) {
+        showError(err.message);
+        btn.disabled = false; btn.textContent = 'Send Verification Code';
+      }
+    }
+    window.sendOTP = sendOTP;
+
+    async function verifyOTP() {
+      var code = document.getElementById('otp-code').value.trim();
+      var email = document.getElementById('sign-email').value.trim();
+      if (!code || code.length !== 6) { showError('Please enter the 6-digit code.'); return; }
+
+      try {
+        var res = await fetch('/api/esign/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agreementId: agreementId, email: email, otp: code, token: token })
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Verification failed');
+
+        otpVerified = true;
+        document.getElementById('otp-input-area').style.display = 'none';
+        document.getElementById('otp-verified-msg').style.display = 'block';
+        document.getElementById('send-otp-btn').style.display = 'none';
+        document.getElementById('to-step-3-btn').disabled = false;
+        hideError();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+    window.verifyOTP = verifyOTP;
+
+    // ─── Signature Method Switching ────────────────────
+    function switchSigMethod(method) {
+      sigMethod = method;
+      document.querySelectorAll('.sig-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.method === method); });
+      document.querySelectorAll('.sig-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.getElementById('panel-' + method).classList.add('active');
+
+      // Re-init canvas when switching to draw
+      if (method === 'draw') {
+        setTimeout(function() {
+          var canvas = document.getElementById('sig-canvas');
+          if (canvas && !signaturePad) {
+            signaturePad = new SignaturePad(canvas);
+            signaturePad.onChange = updateSignButtonState;
+          }
+        }, 50);
+      }
+      updateSignButtonState();
+    }
+    window.switchSigMethod = switchSigMethod;
+
+    // ─── Draw: Clear canvas ────────────────────────────
+    function clearCanvas() { if (signaturePad) signaturePad.clear(); updateSignButtonState(); }
+    window.clearCanvas = clearCanvas;
+
+    // ─── Type: Font selection ──────────────────────────
+    var fontMap = {
+      dancing: "'Dancing Script', cursive",
+      allura: "'Allura', cursive",
+      greatvibes: "'Great Vibes', cursive",
+      sacramento: "'Sacramento', cursive",
+      parisienne: "'Parisienne', cursive",
+      alex: "'Alex Brush', cursive"
+    };
+
+    function selectFont(fontId) {
+      selectedFont = fontId;
+      document.querySelectorAll('.sig-font-option').forEach(function(el) { el.classList.toggle('selected', el.dataset.font === fontId); });
+      var preview = document.getElementById('sig-typed-text');
+      if (preview) preview.style.fontFamily = fontMap[fontId];
+      updateSignButtonState();
+    }
+    window.selectFont = selectFont;
+
+    function updateTypedPreview() {
+      var input = document.getElementById('sig-type-input');
+      var text = document.getElementById('sig-typed-text');
+      if (text) text.textContent = input.value || 'Your Name';
+      updateSignButtonState();
+    }
+    window.updateTypedPreview = updateTypedPreview;
+
+    // ─── Upload: File handling ─────────────────────────
+    function handleFileUpload(input) { if (input.files.length) handleFileObj(input.files[0]); }
+    window.handleFileUpload = handleFileUpload;
+
+    function handleFileObj(file) {
+      if (file.size > 2 * 1024 * 1024) { showError('File must be under 2MB.'); return; }
+      if (!file.type.match(/^image\/(png|jpeg|svg\+xml)$/)) { showError('Please upload a PNG, JPG, or SVG file.'); return; }
+      hideError();
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        uploadedImageData = e.target.result;
+        var preview = document.getElementById('upload-preview');
+        preview.src = uploadedImageData;
+        preview.style.display = 'block';
+        document.getElementById('upload-zone').classList.add('has-file');
+        updateSignButtonState();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ─── Update Sign Button State ──────────────────────
+    function updateSignButtonState() {
+      var consent = document.getElementById('sign-consent');
+      var agree = document.getElementById('sign-agree');
+      var btn = document.getElementById('sign-btn');
+      if (!btn) return;
+
+      var hasSig = false;
+      if (sigMethod === 'draw') hasSig = signaturePad && !signaturePad.isEmpty();
+      else if (sigMethod === 'type') hasSig = (document.getElementById('sig-type-input')?.value || '').trim().length > 0;
+      else if (sigMethod === 'upload') hasSig = !!uploadedImageData;
+
+      var canSign = hasSig && consent?.checked && agree?.checked;
+      btn.disabled = !canSign;
+    }
+
+    // ─── Sign Document ─────────────────────────────────
+    window.signDocument = async function() {
+      var name = document.getElementById('sign-name').value.trim();
+      var email = document.getElementById('sign-email').value.trim();
+      var errEl = document.getElementById('sign-error');
+
+      if (!name || !email) { showError('Please enter your name and email.'); return; }
+
+      // Gather signature data
+      var signatureImage = null;
+      var typedText = null;
+      var fontId = null;
+
+      if (sigMethod === 'draw') {
+        signatureImage = signaturePad ? signaturePad.toDataURL() : null;
+        if (!signatureImage) { showError('Please draw your signature.'); return; }
+      } else if (sigMethod === 'type') {
+        typedText = document.getElementById('sig-type-input').value.trim();
+        fontId = selectedFont;
+        if (!typedText) { showError('Please type your name.'); return; }
+        // Generate image from typed signature
+        signatureImage = generateTypedSignatureImage(typedText, fontId);
+      } else if (sigMethod === 'upload') {
+        signatureImage = uploadedImageData;
+        if (!signatureImage) { showError('Please upload your signature image.'); return; }
+      }
+
+      var btn = document.getElementById('sign-btn');
+      btn.disabled = true; btn.textContent = 'Applying Signature...';
+
+      try {
+        var res = await fetch('/api/agreements/' + agreementId + '/sign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: token,
+            name: name,
+            email: email,
+            method: sigMethod,
+            signatureImage: signatureImage,
+            typedText: typedText,
+            fontId: fontId,
+            consentToERecords: true
+          })
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Signing failed');
+
+        document.getElementById('sign-card').innerHTML =
+          '<div style="text-align:center;padding:40px 20px;">' +
+            '<span style="font-size:48px;">&#10004;</span>' +
+            '<h2 style="color:var(--green);margin:16px 0 8px;">Signed Successfully</h2>' +
+            '<p>Your electronic signature has been applied and cryptographically verified.</p>' +
+            '<div class="sig-preview-box" style="margin:20px auto;max-width:300px;">' +
+              (signatureImage ? '<img src="' + signatureImage + '" style="max-height:60px;">' : '') +
+              '<p style="font-size:12px;color:var(--text-muted);margin-top:8px;">' + esc(name) + ' — ' + new Date().toLocaleString() + '</p>' +
+            '</div>' +
+            '<p style="font-size:12px;color:var(--text-muted);margin-top:12px;">Signature hash: ' + (data.signature ? data.signature.hash : 'verified') + '</p>' +
+            '<p style="font-size:11px;color:var(--text-muted);margin-top:4px;">A copy has been sent to your email.</p>' +
+          '</div>';
+      } catch (err) {
+        showError(err.message);
+        btn.disabled = false; btn.textContent = 'Apply Signature';
+      }
+    };
+
+    // ─── Generate typed signature as image ─────────────
+    function generateTypedSignatureImage(text, font) {
+      var c = document.createElement('canvas');
+      c.width = 600; c.height = 150;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 600, 150);
+      ctx.fillStyle = '#1a1a2e';
+      ctx.font = '48px ' + (fontMap[font] || fontMap.dancing);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 300, 75);
+      return c.toDataURL('image/png');
+    }
+
+    // ─── Decline to Sign ───────────────────────────────
+    function openDeclineModal() { document.getElementById('decline-modal').classList.add('show'); }
+    window.openDeclineModal = openDeclineModal;
+
+    function closeDeclineModal() { document.getElementById('decline-modal').classList.remove('show'); }
+    window.closeDeclineModal = closeDeclineModal;
+
+    async function confirmDecline() {
+      var reason = document.getElementById('decline-reason').value.trim();
+      var email = document.getElementById('sign-email')?.value?.trim();
+      var name = document.getElementById('sign-name')?.value?.trim();
+
+      try {
+        var res = await fetch('/api/agreements/' + agreementId + '/decline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, email: email, name: name, reason: reason })
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to decline');
+
+        closeDeclineModal();
+        document.getElementById('sign-card').innerHTML =
+          '<div style="text-align:center;padding:40px 20px;">' +
+            '<span style="font-size:48px;">&#9888;</span>' +
+            '<h2 style="color:var(--orange);margin:16px 0 8px;">Signature Declined</h2>' +
+            '<p>You have formally declined to sign this agreement.</p>' +
+            (reason ? '<p style="margin-top:12px;font-size:13px;color:var(--text-muted);">Reason: ' + esc(reason) + '</p>' : '') +
+            '<p style="margin-top:12px;font-size:12px;color:var(--text-muted);">The sender has been notified.</p>' +
+          '</div>';
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+    window.confirmDecline = confirmDecline;
+
+    // ─── Helpers ───────────────────────────────────────
+    function showError(msg) {
+      var el = document.getElementById('sign-error');
+      if (el) { el.textContent = msg; el.style.display = 'block'; }
+    }
+    function hideError() {
+      var el = document.getElementById('sign-error');
+      if (el) el.style.display = 'none';
+    }
+    function esc(s) {
+      if (!s) return '';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
   </script>
 </body>
 </html>

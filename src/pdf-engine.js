@@ -179,10 +179,25 @@ function generatePDF(agreement, outputPath) {
         doc.moveTo(xPos, lineY).lineTo(xPos + sigWidth, lineY).strokeColor('#333333').lineWidth(1).stroke();
 
         if (sig) {
-          doc.fontSize(10).font('Helvetica-Oblique').fillColor('#1a6b3c')
-             .text(`Digitally signed by ${sig.name}`, xPos, lineY + 5, { width: sigWidth });
+          // Render actual signature image if available
+          if (sig.signatureImage && sig.signatureImage.startsWith('data:image/png;base64,')) {
+            try {
+              const imgData = sig.signatureImage.replace(/^data:image\/png;base64,/, '');
+              const imgBuffer = Buffer.from(imgData, 'base64');
+              doc.image(imgBuffer, xPos, lineY + 3, { width: Math.min(sigWidth, 180), height: 50, fit: [Math.min(sigWidth, 180), 50] });
+              doc.moveDown(3.5);
+            } catch (e) {
+              // Fallback to text if image rendering fails
+              doc.fontSize(10).font('Helvetica-Oblique').fillColor('#1a6b3c')
+                 .text(`Digitally signed by ${sig.name}`, xPos, lineY + 5, { width: sigWidth });
+            }
+          } else {
+            doc.fontSize(10).font('Helvetica-Oblique').fillColor('#1a6b3c')
+               .text(`Digitally signed by ${sig.name}`, xPos, lineY + 5, { width: sigWidth });
+          }
+          const methodLabel = sig.method === 'draw' ? 'Hand-drawn' : sig.method === 'type' ? 'Typed' : sig.method === 'upload' ? 'Uploaded' : sig.method === 'wallet' ? 'Wallet' : 'Click-to-sign';
           doc.fontSize(8).fillColor('#666666')
-             .text(`${new Date(sig.signedAt).toLocaleString()} | Hash: ${sig.hash.substring(0, 16)}...`, xPos, doc.y, { width: sigWidth });
+             .text(`${methodLabel} | ${new Date(sig.signedAt).toLocaleString()} | Hash: ${sig.hash.substring(0, 16)}...`, xPos, doc.y, { width: sigWidth });
         } else {
           doc.fontSize(9).font('Helvetica').fillColor('#999999')
              .text('Signature', xPos, lineY + 5, { width: sigWidth });
