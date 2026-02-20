@@ -66,6 +66,22 @@
     .score-NEW, .score-PENDING { background:var(--bg4); color:var(--text2); border:1px solid var(--border); }
     .score-UNTRUSTWORTHY { background:var(--red-dim); color:var(--red); }
 
+    .pink { color: #ec4899; }
+    --pink: #ec4899;
+    --pink-dim: rgba(236,72,153,0.15);
+    .mode-date { background:rgba(236,72,153,0.15); color:#ec4899; }
+    .dating-card { border-color:#ec4899 !important; }
+    .dating-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; background:rgba(236,72,153,0.15); color:#ec4899; }
+    .dating-score-big { font-size:48px; font-weight:900; background:linear-gradient(135deg,#ec4899,#f472b6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .rating-stars { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+    .rating-item { display:flex; align-items:center; gap:6px; padding:6px 14px; border-radius:20px; font-size:12px; cursor:pointer; transition:all 0.2s; }
+    .rating-item.positive { background:var(--green-dim); color:var(--green); border:1px solid var(--green); }
+    .rating-item.negative { background:var(--bg3); color:var(--text3); border:1px solid var(--border); }
+    .rating-item:hover { transform:translateY(-1px); }
+    .share-link-box { display:flex; gap:8px; margin-top:16px; }
+    .share-link-box input { flex:1; padding:10px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--gold); font-size:13px; font-family:monospace; }
+    .share-link-box button { white-space:nowrap; }
+
     .btn { padding:10px 20px; border:none; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font); font-size:14px; font-weight:600; transition:all 0.2s; display:inline-flex; align-items:center; gap:8px; }
     .btn-gold { background:linear-gradient(135deg,var(--gold),#f59e0b); color:#000; }
     .btn-gold:hover { transform:translateY(-1px); box-shadow:0 4px 20px rgba(251,191,36,0.3); }
@@ -250,7 +266,7 @@
 
     <!-- Two Modes Explainer -->
     <div class="kyw-container" style="padding-top:40px;padding-bottom:20px;">
-      <div class="modes-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+      <div class="modes-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
         <div style="padding:32px;background:var(--card);border:1px solid var(--purple);border-radius:var(--radius);">
           <div style="font-size:32px;margin-bottom:12px;">&#127919;</div>
           <h3 style="margin-bottom:8px;font-size:18px;color:var(--purple);">Self-Pledge</h3>
@@ -262,6 +278,12 @@
           <h3 style="margin-bottom:8px;font-size:18px;color:var(--orange);">Mutual Pledge</h3>
           <p style="font-size:14px;color:var(--text2);line-height:1.6;">Make a promise to another person. They accept the pledge and confirm whether you kept your word. Both parties build trust scores through accountability to each other.</p>
           <div style="margin-top:16px;font-size:12px;color:var(--text3);">&#128101; Counterparty confirms &#8226; &#9939; On-chain hash &#8226; &#127942; Both build score</div>
+        </div>
+        <div style="padding:32px;background:var(--card);border:1px solid #ec4899;border-radius:var(--radius);">
+          <div style="font-size:32px;margin-bottom:12px;">&#128140;</div>
+          <h3 style="margin-bottom:8px;font-size:18px;color:#ec4899;">Date Pledge</h3>
+          <p style="font-size:14px;color:var(--text2);line-height:1.6;">Going on a date? Both people pledge to show up, be honest, and not ghost. Build a dating trust score you can share on Tinder, Hinge, or Bumble. No more catfishing or ghosting.</p>
+          <div style="margin-top:16px;font-size:12px;color:var(--text3);">&#128140; No ghosting &#8226; &#128247; Real photos &#8226; &#128737; Safe meetups &#8226; &#127942; Dating score</div>
         </div>
       </div>
     </div>
@@ -286,6 +308,10 @@
           <button class="social-btn" onclick="selectProvider('instagram')"><span class="social-btn-icon">&#128247;</span><span>Continue with Instagram</span></button>
           <button class="social-btn" onclick="selectProvider('google')"><span class="social-btn-icon">G</span><span>Continue with Google</span></button>
           <button class="social-btn" onclick="selectProvider('github')"><span class="social-btn-icon">&#128736;</span><span>Continue with GitHub</span></button>
+          <div style="margin:16px 0 8px;font-size:12px;color:var(--text3);text-align:center;text-transform:uppercase;letter-spacing:1px;">Dating Apps</div>
+          <button class="social-btn" style="border-color:rgba(236,72,153,0.3);" onclick="selectProvider('tinder')"><span class="social-btn-icon">&#128293;</span><span>Continue with Tinder</span></button>
+          <button class="social-btn" style="border-color:rgba(236,72,153,0.3);" onclick="selectProvider('hinge')"><span class="social-btn-icon">&#128140;</span><span>Continue with Hinge</span></button>
+          <button class="social-btn" style="border-color:rgba(236,72,153,0.3);" onclick="selectProvider('bumble')"><span class="social-btn-icon">&#128029;</span><span>Continue with Bumble</span></button>
         </div>
         <div id="social-handle-form" style="display:none;">
           <div style="text-align:center;margin-bottom:20px;">
@@ -333,6 +359,7 @@
         <button class="kyw-tab active" data-tab="feed" onclick="switchTab('feed')">&#127760; Feed</button>
         <button class="kyw-tab" data-tab="create" onclick="switchTab('create')">&#10010; New Pledge</button>
         <button class="kyw-tab" data-tab="my" onclick="switchTab('my')">&#128100; My Pledges</button>
+        <button class="kyw-tab" data-tab="dating" onclick="switchTab('dating')" style="color:#ec4899;">&#128140; Dating</button>
         <button class="kyw-tab" data-tab="pending" onclick="switchTab('pending')">&#128232; Requests <span class="tab-badge" id="pending-count" style="display:none;">0</span></button>
         <button class="kyw-tab" data-tab="leaderboard" onclick="switchTab('leaderboard')">&#127942; Leaderboard</button>
       </div>
@@ -357,6 +384,7 @@
   let feedCategory = null;
   let categories = [];
   let templates = [];
+  let dateTemplates = [];
   let pendingCount = 0;
   let createMode = 'self';
   let selectedTemplate = null;
@@ -389,8 +417,9 @@
   }
 
   // ─── Init ──────────────────
-  loadStats(); loadCategories(); loadTemplates();
+  loadStats(); loadCategories(); loadTemplates(); loadDateTemplates();
   if (kywToken && kywUser) showApp();
+  checkDatingProfileUrl();
 
   async function loadStats() {
     try {
@@ -402,12 +431,69 @@
   }
   async function loadCategories() { try { categories = await api('GET', '/api/kyw/categories'); } catch(e) {} }
   async function loadTemplates() { try { templates = await api('GET', '/api/kyw/templates'); } catch(e) {} }
+  async function loadDateTemplates() { try { dateTemplates = await api('GET', '/api/kyw/date-templates'); } catch(e) {} }
+
+  function checkDatingProfileUrl() {
+    var m = window.location.pathname.match(/\/kyw\/dating\/(.*)/); 
+    if (m) { renderPublicDatingProfile(decodeURIComponent(m[1])); }
+  }
+
+  async function renderPublicDatingProfile(userId) {
+    try {
+      var data = await api('GET', '/api/kyw/dating-profile/'+encodeURIComponent(userId));
+      document.getElementById('kyw-login-screen').style.display = 'none';
+      document.getElementById('kyw-app').style.display = 'none';
+      var el = document.createElement('div');
+      el.style.cssText = 'max-width:600px;margin:40px auto;padding:0 24px;';
+      var ds = data.datingScore;
+      var ss = data.socialScore;
+      var html = '<div style="text-align:center;margin-bottom:32px;"><a href="/keepyourword" style="font-size:13px;">&#129309; Keep Your Word</a></div>';
+      html += '<div class="score-card" style="border:1px solid #ec4899;">';
+      html += '<div style="font-size:14px;color:#ec4899;margin-bottom:8px;">&#128140; Dating Trust Score</div>';
+      html += '<div class="dating-score-big">'+ds.datingScore+'</div>';
+      html += '<div class="score-grade" style="margin-top:4px;"><span class="dating-badge">'+ds.grade+'</span></div>';
+      html += '<div style="font-size:18px;font-weight:700;margin-top:12px;">'+esc(data.displayName)+'</div>';
+      html += '<div style="font-size:13px;color:var(--text3);">@'+esc(data.handle)+' &middot; '+data.provider+'</div>';
+      if (data.verified) html += '<div style="color:var(--green);font-size:12px;margin-top:4px;">&#10004; Verified Account</div>';
+      html += '<div class="score-breakdown" style="margin-top:20px;">';
+      html += '<div class="score-stat"><div class="score-stat-value">'+ds.totalDates+'</div><div class="score-stat-label">Dates</div></div>';
+      html += '<div class="score-stat"><div class="score-stat-value" style="color:var(--green);">'+ds.showedUp+'</div><div class="score-stat-label">Showed Up</div></div>';
+      html += '<div class="score-stat"><div class="score-stat-value" style="color:var(--red);">'+ds.ghosted+'</div><div class="score-stat-label">Ghosted</div></div>';
+      html += '<div class="score-stat"><div class="score-stat-value" style="color:var(--gold);">'+ss.score+'</div><div class="score-stat-label">Trust Score</div></div>';
+      html += '</div>';
+      if (ds.badges && ds.badges.length) {
+        html += '<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">';
+        ds.badges.forEach(function(b) { html += '<span class="dating-badge">'+b+'</span>'; });
+        html += '</div>';
+      }
+      html += '</div>';
+
+      if (data.datePledges && data.datePledges.length) {
+        html += '<h3 style="margin:24px 0 12px;">Date Pledge History</h3>';
+        data.datePledges.forEach(function(p) {
+          html += '<div class="pledge-card dating-card">';
+          html += '<div class="pledge-title">'+esc(p.title)+'</div>';
+          html += '<div class="pledge-meta" style="margin-top:8px;">';
+          html += '<span class="pledge-status '+p.status+'">'+p.status.toUpperCase()+'</span>';
+          if (p.dateLocation) html += '<span class="pledge-meta-item">&#128205; '+esc(p.dateLocation)+'</span>';
+          html += '<span class="pledge-meta-item">'+timeAgo(p.createdAt)+'</span>';
+          html += '</div></div>';
+        });
+      }
+
+      html += '<div style="text-align:center;margin-top:32px;"><a href="/keepyourword" class="btn btn-gold">Join Keep Your Word</a></div>';
+      el.innerHTML = html;
+      document.body.appendChild(el);
+    } catch(e) {
+      document.body.innerHTML = '<div style="text-align:center;padding:80px 24px;"><h2>Profile not found</h2><p style="margin-top:12px;"><a href="/keepyourword">Go to Keep Your Word</a></p></div>';
+    }
+  }
 
   // ─── Social Login ──────────
   window.selectProvider = function(p) {
     selectedProvider = p;
-    var names = { twitter:'X (Twitter)', instagram:'Instagram', google:'Google', github:'GitHub' };
-    var icons = { twitter:'\u{1D54F}', instagram:'\u{1F4F7}', google:'G', github:'\u{1F6E0}' };
+    var names = { twitter:'X (Twitter)', instagram:'Instagram', google:'Google', github:'GitHub', tinder:'Tinder', hinge:'Hinge', bumble:'Bumble' };
+    var icons = { twitter:'\u{1D54F}', instagram:'\u{1F4F7}', google:'G', github:'\u{1F6E0}', tinder:'\u{1F525}', hinge:'\u{1F48C}', bumble:'\u{1F41D}' };
     document.getElementById('selected-provider-icon').textContent = icons[p]||'?';
     document.getElementById('selected-provider-name').textContent = names[p]||p;
     document.getElementById('social-provider-select').style.display = 'none';
@@ -484,6 +570,7 @@
       case 'feed': renderFeed(); break;
       case 'create': renderCreate(); break;
       case 'my': renderMyPledges(); break;
+      case 'dating': renderDating(); break;
       case 'pending': renderPending(); break;
       case 'leaderboard': renderLeaderboard(); break;
     }
@@ -516,7 +603,7 @@
     var u = user || {};
     var provIco = u.provider==='twitter'?'\u{1D54F}':u.provider==='instagram'?'\u{1F4F7}':u.provider==='google'?'G':'\u{1F6E0}';
     var mode = pledge.mode || 'self';
-    var modeBadge = '<span class="mode-badge mode-'+mode+'">'+(mode==='self'?'&#127919; Self':'&#129309; Mutual')+'</span>';
+    var modeBadge = '<span class="mode-badge mode-'+mode+'">'+(mode==='self'?'&#127919; Self':mode==='date'?'&#128140; Date':'&#129309; Mutual')+'</span>';
 
     var html = '<div class="pledge-card">';
     html += '<div class="pledge-header"><div class="pledge-user">';
@@ -534,6 +621,34 @@
       html += '&#129309; With: @'+esc(pledge.counterpartyHandle);
       html += pledge.counterpartyAccepted ? ' &#10004; Accepted' : ' &#8987; Waiting';
       html += '</div>';
+    }
+
+    // Date: show date info
+    if (mode === 'date') {
+      html += '<div style="font-size:12px;padding:8px 12px;background:rgba(236,72,153,0.08);border:1px solid rgba(236,72,153,0.2);border-radius:8px;margin-bottom:12px;color:#ec4899;">';
+      html += '&#128140; Date with: @'+esc(pledge.counterpartyHandle||'?');
+      html += pledge.counterpartyAccepted ? ' &#10004; Accepted' : ' &#8987; Waiting';
+      if (pledge.dateLocation) html += '<br>&#128205; '+esc(pledge.dateLocation);
+      if (pledge.dateTime) html += ' &middot; &#128197; '+new Date(pledge.dateTime).toLocaleString();
+      html += '</div>';
+      if (pledge.dateSubPledges && pledge.dateSubPledges.length) {
+        html += '<div style="font-size:12px;margin-bottom:12px;">';
+        pledge.dateSubPledges.forEach(function(sp) {
+          html += '<div style="margin:3px 0;color:var(--text2);">&#10003; '+esc(sp)+'</div>';
+        });
+        html += '</div>';
+      }
+      // Show date ratings if any
+      if (pledge.dateRatings && Object.keys(pledge.dateRatings).length > 0) {
+        html += '<div style="font-size:12px;padding:8px 12px;background:var(--bg2);border-radius:8px;margin-bottom:12px;">';
+        html += '<strong>Ratings:</strong>';
+        Object.keys(pledge.dateRatings).forEach(function(rk) {
+          var r = pledge.dateRatings[rk];
+          html += '<div style="margin-top:4px;">★ Showed Up: '+(r.showedUp?'Yes':'No')+' &middot; Honest: '+(r.honest?'Yes':'No')+' &middot; Respectful: '+(r.respectful?'Yes':'No')+' &middot; Would Date Again: '+(r.wouldDateAgain?'Yes':'No')+'</div>';
+          if (r.note) html += '<div style="font-style:italic;color:var(--text3);">"'+esc(r.note)+'"</div>';
+        });
+        html += '</div>';
+      }
     }
 
     // Self: show streak / check-in progress
@@ -569,7 +684,7 @@
     if (pledge.deadline) html += '<span class="pledge-meta-item">&#128197; '+new Date(pledge.deadline).toLocaleDateString()+'</span>';
     if (pledge.frequency) html += '<span class="pledge-meta-item">&#128260; '+pledge.frequency+'</span>';
     if (pledge.verificationType) {
-      var vi = { gps:'&#128205; GPS', timed:'&#9200; Timed', photo:'&#128247; Photo', streak:'&#128293; Streak', peer:'&#128101; Peer' };
+      var vi = { gps:'&#128205; GPS', timed:'&#9200; Timed', photo:'&#128247; Photo', streak:'&#128293; Streak', peer:'&#128101; Peer', date_mutual:'&#128140; Date' };
       html += '<span class="pledge-meta-item">'+(vi[pledge.verificationType]||pledge.verificationType)+'</span>';
     }
     html += '<span class="pledge-meta-item">&#128336; '+timeAgo(pledge.createdAt)+'</span>';
@@ -590,11 +705,24 @@
       if (mode === 'mutual' && pledge.counterpartyAccepted && pledge.linkedRole === 'counterparty') {
         html += '<button class="btn btn-green btn-sm" onclick="confirmMutualPledge(\''+pledge.id+'\',\'kept\')">&#10004; They Kept It</button>';
         html += '<button class="btn btn-red btn-sm" onclick="confirmMutualPledge(\''+pledge.id+'\',\'broken\')">&#10006; They Broke It</button>';
+      } else if (mode === 'date' && pledge.counterpartyAccepted && pledge.linkedRole === 'counterparty') {
+        html += '<button class="btn btn-green btn-sm" onclick="confirmMutualPledge(\''+pledge.id+'\',\'kept\')">&#10004; They Kept It</button>';
+        html += '<button class="btn btn-red btn-sm" onclick="confirmMutualPledge(\''+pledge.id+'\',\'broken\')">&#10006; They Broke It</button>';
       } else {
         html += '<button class="btn btn-green btn-sm" onclick="resolvePledge(\''+pledge.id+'\',\'kept\')">&#10004; Kept</button>';
         html += '<button class="btn btn-red btn-sm" onclick="resolvePledge(\''+pledge.id+'\',\'broken\')">&#10006; Broken</button>';
       }
       html += '</div>';
+    }
+
+    // Rate This Date button for resolved date pledges
+    if (mode === 'date' && (pledge.status === 'kept' || pledge.status === 'broken')) {
+      var alreadyRated = pledge.dateRatings && pledge.dateRatings[kywUser.id];
+      if (!alreadyRated) {
+        html += '<div class="pledge-actions">';
+        html += '<button class="btn btn-sm" style="background:#ec4899;color:#fff;" onclick="showRateDateForm(\''+pledge.id+'\')">&#11088; Rate This Date</button>';
+        html += '</div>';
+      }
     }
 
     html += '</div>';
@@ -642,8 +770,7 @@
     // Mode toggle
     html += '<div class="mode-toggle">';
     html += '<button class="mode-toggle-btn '+(createMode==='self'?'active':'')+'" onclick="setCreateMode(\'self\')">&#127919; Self-Pledge</button>';
-    html += '<button class="mode-toggle-btn '+(createMode==='mutual'?'active':'')+'" onclick="setCreateMode(\'mutual\')">&#129309; Mutual Pledge</button>';
-    html += '</div>';
+    html += '<button class="mode-toggle-btn '+(createMode==='mutual'?'active':'')+'" onclick="setCreateMode(\'mutual\')">&#129309; Mutual Pledge</button>';    html += '<button class="mode-toggle-btn '+(createMode==='date'?'active':'')+' " onclick="setCreateMode(\'date\')" style="'+(createMode==='date'?'background:rgba(236,72,153,0.15);color:#ec4899;border-bottom:2px solid #ec4899;':'')+'">&#128140; Date Pledge</button>';    html += '</div>';
 
     if (createMode === 'self') {
       // Template picker
@@ -735,6 +862,55 @@
 
       html += '<div class="form-group"><label><input type="checkbox" id="mutual-public" checked> Make public</label></div>';
       html += '<button class="btn btn-gold" onclick="submitMutualPledge()" style="margin-top:12px;">&#129309; Send Pledge</button>';
+
+    } else if (createMode === 'date') {
+      // Date pledge creation form
+      html += '<div style="padding:16px;background:rgba(236,72,153,0.08);border:1px solid rgba(236,72,153,0.25);border-radius:8px;margin-bottom:24px;font-size:13px;color:#ec4899;">';
+      html += '&#128140; Going on a date? Both of you pledge to show up, be honest, and not ghost. Build a dating trust score you can share on your dating profiles.</div>';
+
+      // Date template picker
+      html += '<label style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px;display:block;">Choose a Date Pledge Template</label>';
+      html += '<div class="template-grid">';
+      dateTemplates.forEach(function(t) {
+        html += '<div class="template-card '+(selectedTemplate===t.id?'selected':'')+'" onclick="pickTemplate(\''+t.id+'\')" style="'+(selectedTemplate===t.id?'border-color:#ec4899;box-shadow:0 0 0 2px rgba(236,72,153,0.2);':'')+'">';
+        html += '<div class="template-card-icon">'+t.icon+'</div>';
+        html += '<div class="template-card-name">'+t.name+'</div>';
+        html += '<div class="template-card-desc">'+(t.description||'').substring(0,60)+'</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+
+      var dtpl = selectedTemplate ? dateTemplates.find(function(t) { return t.id === selectedTemplate; }) : null;
+
+      // Sub-pledges checkboxes if template selected
+      if (dtpl && dtpl.pledges) {
+        html += '<div style="margin:20px 0;padding:16px;background:var(--bg2);border-radius:8px;">';
+        html += '<label style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px;display:block;">Sub-Pledges (what you\'re both committing to)</label>';
+        dtpl.pledges.forEach(function(sp, idx) {
+          html += '<div style="margin:6px 0;"><label style="cursor:pointer;font-size:13px;"><input type="checkbox" class="date-sub-pledge" value="'+esc(sp)+'" checked> '+esc(sp)+'</label></div>';
+        });
+        html += '</div>';
+      }
+
+      html += '<div class="form-group"><label>Custom Title (optional — template title used if blank)</label>';
+      html += '<input class="form-input" id="date-title" placeholder="e.g. Coffee date with Sarah — no catfishing pledge" value="'+(dtpl?esc(dtpl.name):'')+'"></div>';
+
+      html += '<div class="form-row">';
+      html += '<div class="form-group"><label>&#128205; Date Location</label>';
+      html += '<input class="form-input" id="date-location" placeholder="e.g. Blue Bottle Coffee, Downtown"></div>';
+      html += '<div class="form-group"><label>&#128197; Date & Time</label>';
+      html += '<input class="form-input" id="date-time" type="datetime-local"></div></div>';
+
+      html += '<div class="form-row">';
+      html += '<div class="form-group"><label>Their Platform</label><select class="form-select" id="date-provider">';
+      html += '<option value="tinder">&#128293; Tinder</option><option value="hinge">&#128140; Hinge</option><option value="bumble">&#128029; Bumble</option>';
+      html += '<option value="twitter">X (Twitter)</option><option value="instagram">Instagram</option>';
+      html += '<option value="google">Google</option><option value="github">GitHub</option></select></div>';
+      html += '<div class="form-group"><label>Their Handle / Username</label>';
+      html += '<input class="form-input" id="date-handle" placeholder="@theirhandle or username"></div></div>';
+
+      html += '<div class="form-group"><label><input type="checkbox" id="date-public" checked> Make this date pledge public</label></div>';
+      html += '<button class="btn" onclick="submitDatePledge()" style="margin-top:12px;background:#ec4899;color:#fff;">&#128140; Send Date Pledge</button>';
     }
 
     html += '</div>';
@@ -859,15 +1035,21 @@
       var html = '<h2 style="margin-bottom:20px;">&#128232; Pledge Requests</h2>';
       pending.forEach(function(p) {
         var u = p.user || {};
-        html += '<div class="pledge-card" style="border-color:var(--orange);">';
+        var isDate = p.mode === 'date';
+        var borderColor = isDate ? '#ec4899' : 'var(--orange)';
+        var badge = isDate ? '<span class="mode-badge mode-date">&#128140; Date</span>' : '<span class="mode-badge mode-mutual">&#129309; Mutual</span>';
+        var hint = isDate ? 'This person wants to make a date pledge with you. Accept to hold each other accountable!' : 'This person made a pledge to you. Accept to hold them accountable.';
+        html += '<div class="pledge-card" style="border-color:'+borderColor+';">';
         html += '<div class="pledge-header"><div class="pledge-user">';
         html += '<div class="pledge-user-avatar">'+(u.displayName||'?')[0].toUpperCase()+'</div>';
-        html += '<div><div class="pledge-user-name">'+esc(u.displayName)+' <span class="mode-badge mode-mutual">&#129309; Mutual</span></div>';
+        html += '<div><div class="pledge-user-name">'+esc(u.displayName)+' '+badge+'</div>';
         html += '<div class="pledge-user-provider">@'+esc(u.handle)+'</div></div></div>';
         html += '<span class="pledge-status active">PENDING</span></div>';
         html += '<div class="pledge-title">'+esc(p.title)+'</div>';
         if (p.description) html += '<div class="pledge-description">'+esc(p.description)+'</div>';
-        html += '<div style="font-size:13px;color:var(--orange);margin:12px 0;">This person made a pledge to you. Accept to hold them accountable.</div>';
+        if (isDate && p.dateLocation) html += '<div style="font-size:12px;color:#ec4899;margin:4px 0;">&#128205; '+esc(p.dateLocation)+'</div>';
+        if (isDate && p.dateTime) html += '<div style="font-size:12px;color:#ec4899;margin:4px 0;">&#128197; '+new Date(p.dateTime).toLocaleString()+'</div>';
+        html += '<div style="font-size:13px;color:'+(isDate?'#ec4899':'var(--orange)')+';margin:12px 0;">'+hint+'</div>';
         html += '<div class="pledge-actions">';
         html += '<button class="btn btn-green btn-sm" onclick="acceptPledge(\''+p.id+'\')">&#10004; Accept</button>';
         html += '<button class="btn btn-outline btn-sm" onclick="toast(\'Ignored for now\')">Ignore</button>';
@@ -910,6 +1092,148 @@
     try {
       await api('POST', '/api/kyw/pledges/'+id+'/react', { reaction: reaction });
       if (currentTab==='feed') renderFeed(); else renderMyPledges();
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  // ─── Submit Date Pledge ───
+  window.submitDatePledge = async function() {
+    var dtpl = selectedTemplate ? dateTemplates.find(function(t) { return t.id === selectedTemplate; }) : null;
+    var title = document.getElementById('date-title').value.trim() || (dtpl ? dtpl.name : '');
+    var handle = document.getElementById('date-handle').value.trim().replace('@','');
+    if (!title) { toast('Pick a template or enter a title','error'); return; }
+    if (!handle) { toast('Enter your date\'s handle','error'); return; }
+
+    var subPledges = [];
+    document.querySelectorAll('.date-sub-pledge:checked').forEach(function(cb) { subPledges.push(cb.value); });
+
+    try {
+      var data = await api('POST', '/api/kyw/pledges', {
+        title: title,
+        description: dtpl ? dtpl.description : '',
+        mode: 'date',
+        templateId: selectedTemplate,
+        counterpartyHandle: handle,
+        counterpartyProvider: document.getElementById('date-provider').value,
+        dateLocation: document.getElementById('date-location').value.trim(),
+        dateTime: document.getElementById('date-time').value || null,
+        dateSubPledges: subPledges,
+        category: 'dating',
+        isPublic: document.getElementById('date-public').checked
+      });
+      kywUser.score = data.score; updateScore();
+      toast('Date pledge sent! Waiting for @'+handle+' to accept. &#128140;');
+      selectedTemplate = null; switchTab('my');
+    } catch(err) { toast(err.message,'error'); }
+  };
+
+  // ─── Dating Profile Tab ────
+  async function renderDating() {
+    var el = document.getElementById('tab-content');
+    el.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
+    try {
+      var profile = await api('GET', '/api/kyw/dating-profile/'+encodeURIComponent(kywUser.id));
+      var ds = profile.datingScore || {};
+      var html = '';
+
+      // Dating Score Card
+      html += '<div class="dating-card" style="text-align:center;padding:32px;">';
+      html += '<h2 style="color:#ec4899;margin-bottom:8px;">&#128140; Your Dating Trust Score</h2>';
+      html += '<div class="dating-score-big">'+(ds.datingScore||0)+'</div>';
+      html += '<div style="font-size:16px;color:var(--text2);margin:8px 0;">Grade: <span class="score-'+(ds.grade||'F')+'" style="font-weight:700;font-size:18px;padding:4px 12px;border-radius:8px;display:inline-block;">'+(ds.grade||'F')+'</span></div>';
+      html += '<div style="font-size:14px;color:var(--text3);margin:12px 0;">'+(ds.totalDates||0)+' dates &middot; '+(ds.showedUp||0)+' showed up &middot; '+(ds.ghosted||0)+' ghosted</div>';
+
+      // Badges
+      if (ds.badges && ds.badges.length > 0) {
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0;">';
+        ds.badges.forEach(function(b) {
+          html += '<div class="dating-badge">'+b+'</div>';
+        });
+        html += '</div>';
+      } else {
+        html += '<div style="font-size:13px;color:var(--text3);margin:16px 0;">Complete date pledges to earn badges!</div>';
+      }
+      html += '</div>';
+
+      // Shareable Link
+      var shareUrl = profile.shareUrl || (window.location.origin + '/kyw/dating/' + encodeURIComponent(kywUser.id));
+      html += '<div class="dating-card" style="margin-top:20px;">';
+      html += '<h3 style="margin-bottom:12px;">&#128279; Share Your Dating Profile</h3>';
+      html += '<p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Add this link to your Tinder, Hinge, or Bumble bio so dates can see your trust score.</p>';
+      html += '<div class="share-link-box">';
+      html += '<input type="text" value="'+esc(shareUrl)+'" id="dating-share-url" readonly style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:13px;color:var(--text1);font-family:monospace;">';
+      html += '<button class="btn btn-sm" style="background:#ec4899;color:#fff;white-space:nowrap;" onclick="copyDatingLink()">&#128203; Copy</button>';
+      html += '</div></div>';
+
+      // Positive ratings summary
+      if (ds.totalRatings > 0) {
+        html += '<div class="dating-card" style="margin-top:20px;">';
+        html += '<h3 style="margin-bottom:12px;">&#11088; Ratings from Dates</h3>';
+        html += '<div style="font-size:14px;color:var(--text2);">';
+        html += '<span style="color:#ec4899;font-weight:700;font-size:20px;">'+ds.positiveRatings+'</span> / '+ds.totalRatings+' positive ratings';
+        html += '</div></div>';
+      }
+
+      // Date Pledges List
+      html += '<div style="margin-top:24px;">';
+      html += '<h3 style="margin-bottom:16px;">&#128140; Date Pledge History</h3>';
+      if (profile.datePledges && profile.datePledges.length > 0) {
+        profile.datePledges.forEach(function(p) {
+          html += renderPledgeCard(p, { displayName:kywUser.displayName, handle:kywUser.handle, provider:kywUser.provider, verified:kywUser.verified }, true);
+        });
+      } else {
+        html += '<div class="empty-state"><div class="empty-icon">&#128140;</div>';
+        html += '<h3>No date pledges yet</h3>';
+        html += '<p style="color:var(--text3);">Create a date pledge to start building your dating trust score!</p>';
+        html += '<button class="btn" style="background:#ec4899;color:#fff;margin-top:12px;" onclick="setCreateMode(\'date\');switchTab(\'create\');">&#128140; Create Date Pledge</button>';
+        html += '</div>';
+      }
+      html += '</div>';
+
+      el.innerHTML = html;
+    } catch(err) {
+      el.innerHTML = '<div class="empty-state"><p style="color:var(--red);">'+err.message+'</p></div>';
+    }
+  }
+
+  window.copyDatingLink = function() {
+    var inp = document.getElementById('dating-share-url');
+    inp.select(); document.execCommand('copy');
+    toast('Dating profile link copied! Paste it in your dating app bio. &#128140;');
+  };
+
+  // ─── Rate a Date ───────────
+  window.showRateDateForm = function(pledgeId) {
+    var el = document.getElementById('tab-content');
+    var html = '<div class="dating-card" style="max-width:500px;margin:0 auto;">';
+    html += '<h2 style="color:#ec4899;">&#11088; Rate This Date</h2>';
+    html += '<p style="font-size:13px;color:var(--text2);margin-bottom:20px;">Your honest rating helps build trust in the dating community.</p>';
+
+    html += '<div class="rating-item"><label><input type="checkbox" id="rate-showed-up" checked> &#10004; They showed up</label></div>';
+    html += '<div class="rating-item"><label><input type="checkbox" id="rate-honest" checked> &#128172; They were honest about themselves</label></div>';
+    html += '<div class="rating-item"><label><input type="checkbox" id="rate-respectful" checked> &#128588; They were respectful</label></div>';
+    html += '<div class="rating-item"><label><input type="checkbox" id="rate-would-date-again"> &#128140; Would date again</label></div>';
+
+    html += '<div class="form-group" style="margin-top:16px;"><label>Note (optional)</label>';
+    html += '<textarea class="form-textarea" id="rate-note" placeholder="Any feedback..." rows="2"></textarea></div>';
+
+    html += '<div style="display:flex;gap:8px;margin-top:16px;">';
+    html += '<button class="btn" style="background:#ec4899;color:#fff;" onclick="submitDateRating(\''+pledgeId+'\')">Submit Rating</button>';
+    html += '<button class="btn btn-outline" onclick="renderMyPledges()">Cancel</button>';
+    html += '</div></div>';
+    el.innerHTML = html;
+  };
+
+  window.submitDateRating = async function(pledgeId) {
+    try {
+      await api('POST', '/api/kyw/pledges/'+pledgeId+'/rate', {
+        showedUp: document.getElementById('rate-showed-up').checked,
+        honest: document.getElementById('rate-honest').checked,
+        respectful: document.getElementById('rate-respectful').checked,
+        wouldDateAgain: document.getElementById('rate-would-date-again').checked,
+        note: document.getElementById('rate-note').value.trim()
+      });
+      toast('Rating submitted! Thanks for building dating trust. &#11088;');
+      renderMyPledges();
     } catch(err) { toast(err.message,'error'); }
   };
 

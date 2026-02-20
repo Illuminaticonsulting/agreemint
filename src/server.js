@@ -18,7 +18,7 @@ const { hashDocument, createAuditEntry, signAgreement, generateCertificate, veri
 const { generatePDF, generateCertificatePDF, formatType } = require('./pdf-engine');
 const { AGREEMENT_TYPES, JURISDICTIONS, CATEGORIES } = require('./templates');
 const { createAnchorRecord, prepareStoryRegistration, prepareEscrowTransaction, generateOnChainProof, ESCROW_ABI, STORY_CONTRACTS, ESCROW_CURRENCIES, ESCROW_RULE_PRESETS } = require('./blockchain-engine');
-const { calculateSocialScore, createPledge, resolvePledge, processCheckin, hashPledge, PLEDGE_CATEGORIES, VERIFICATION_TYPES, SELF_PLEDGE_TEMPLATES } = require('./kyw-engine');
+const { calculateSocialScore, calculateDatingScore, createPledge, resolvePledge, processCheckin, hashPledge, PLEDGE_CATEGORIES, VERIFICATION_TYPES, SELF_PLEDGE_TEMPLATES, DATE_PLEDGE_TEMPLATES } = require('./kyw-engine');
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -689,7 +689,7 @@ app.post('/api/kyw/auth/social', (req, res) => {
   const { provider, handle, displayName, profileUrl, avatarUrl } = req.body;
   if (!provider || !handle) return res.status(400).json({ error: 'Provider and handle required' });
 
-  const validProviders = ['twitter', 'x', 'instagram', 'google', 'github'];
+  const validProviders = ['twitter', 'x', 'instagram', 'google', 'github', 'tinder', 'hinge', 'bumble'];
   if (!validProviders.includes(provider.toLowerCase())) {
     return res.status(400).json({ error: 'Invalid provider. Use: twitter, x, instagram, google, github' });
   }
@@ -784,7 +784,12 @@ app.get('/api/kyw/profile/:userId', (req, res) => {
       counterpartyHandle: p.counterpartyHandle,
       counterpartyAccepted: p.counterpartyAccepted,
       checkins: p.checkins || [],
-      reactions: p.reactions
+      reactions: p.reactions,
+      dateLocation: p.dateLocation,
+      dateTime: p.dateTime,
+      dateSubPledges: p.dateSubPledges || [],
+      dateRatings: p.dateRatings || {},
+      description: p.description
     }))
   });
 });
@@ -801,7 +806,7 @@ app.post('/api/kyw/pledges', (req, res) => {
   const pledge = createPledge(userId, req.body);
 
   // For mutual pledges, link to counterparty if they exist
-  if (pledge.mode === 'mutual' && pledge.counterpartyHandle && pledge.counterpartyProvider) {
+  if ((pledge.mode === 'mutual' || pledge.mode === 'date') && pledge.counterpartyHandle && pledge.counterpartyProvider) {
     const cpId = `${pledge.counterpartyProvider}:${pledge.counterpartyHandle.toLowerCase().replace('@', '')}`;
     if (db.kywUsers[cpId]) {
       pledge.counterpartyUserId = cpId;
@@ -999,7 +1004,7 @@ app.post('/api/kyw/pledges/:id/accept', (req, res) => {
   const { userId } = authTokens[token];
   const pledge = db.pledges[req.params.id];
   if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
-  if (pledge.mode !== 'mutual') return res.status(400).json({ error: 'Not a mutual pledge' });
+  if (pledge.mode !== 'mutual' && pledge.mode !== 'date') return res.status(400).json({ error: 'Not a mutual/date pledge' });
 
   // Check the accepting user matches the counterparty
   const user = db.kywUsers[userId];
@@ -1042,7 +1047,7 @@ app.post('/api/kyw/pledges/:id/confirm', (req, res) => {
 
   const pledge = db.pledges[req.params.id];
   if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
-  if (pledge.mode !== 'mutual') return res.status(400).json({ error: 'Not a mutual pledge' });
+  if (pledge.mode !== 'mutual' && pledge.mode !== 'date') return res.status(400).json({ error: 'Not a mutual/date pledge' });
   if (pledge.status !== 'active') return res.status(400).json({ error: 'Pledge already resolved' });
   if (!pledge.counterpartyAccepted) return res.status(400).json({ error: 'Counterparty has not accepted yet' });
   if (pledge.counterpartyUserId !== userId) return res.status(403).json({ error: 'Only the counterparty can confirm' });
@@ -1072,6 +1077,87 @@ app.get('/api/kyw/templates', (req, res) => {
   res.json(SELF_PLEDGE_TEMPLATES);
 });
 
+// ---- KYW: Date pledge templates ----
+app.get('/api/kyw/date-templates', (req, res) => {
+  res.json(DATE_PLEDGE_TEMPLATES);
+});
+
+// ---- KYW: Rate a date (after date pledge is complete) ----
+app.post('/api/kyw/pledges/:id/rate', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token || !authTokens[token]) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = authTokens[token];
+  const pledge = db.pledges[req.params.id];
+  if (!pledge) return res.status(404).json({ error: 'Pledge not found' });
+  if (pledge.mode !== 'date') return res.status(400).json({ error: 'Not a date pledge' });
+  if (pledge.userId !== userId && pledge.counterpartyUserId !== userId) return res.status(403).json({ error: 'Not your pledge' });
+
+  const { showedUp, honest, respectful, wouldDateAgain, note } = req.body;
+  if (!pledge.dateRatings) pledge.dateRatings = {};
+  pledge.dateRatings[userId] = {
+    showedUp: !!showedUp,
+    honest: !!honest,
+    respectful: !!respectful,
+    wouldDateAgain: !!wouldDateAgain,
+    note: (note || '').substring(0, 500),
+    ratedAt: new Date().toISOString()
+  };
+
+  // Update the pledge in creator and counterparty's copies too
+  const creator = db.kywUsers[pledge.userId];
+  if (creator) {
+    const cp = creator.pledges.find(p => p.id === pledge.id);
+    if (cp) { if (!cp.dateRatings) cp.dateRatings = {}; cp.dateRatings[userId] = pledge.dateRatings[userId]; }
+  }
+  const cpUser = pledge.counterpartyUserId ? db.kywUsers[pledge.counterpartyUserId] : null;
+  if (cpUser) {
+    const cp2 = cpUser.pledges.find(p => p.id === pledge.id);
+    if (cp2) { if (!cp2.dateRatings) cp2.dateRatings = {}; cp2.dateRatings[userId] = pledge.dateRatings[userId]; }
+  }
+
+  saveDB();
+  res.json({ ok: true, dateRatings: pledge.dateRatings });
+});
+
+// ---- KYW: Public shareable dating profile ----
+app.get('/api/kyw/dating-profile/:userId', (req, res) => {
+  const user = db.kywUsers[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const datingScore = calculateDatingScore(user);
+  const socialScore = calculateSocialScore(user);
+  const datePledges = (user.pledges || []).filter(p => p.mode === 'date' && p.isPublic).map(p => ({
+    id: p.id,
+    title: p.title,
+    templateId: p.templateId,
+    status: p.status,
+    createdAt: p.createdAt,
+    resolvedAt: p.resolvedAt,
+    dateLocation: p.dateLocation,
+    dateSubPledges: p.dateSubPledges,
+    counterpartyHandle: p.counterpartyHandle,
+    dateRatings: p.dateRatings || {}
+  }));
+
+  res.json({
+    handle: user.handle,
+    displayName: user.displayName,
+    provider: user.provider,
+    verified: user.verified,
+    joinedAt: user.joinedAt,
+    socialScore,
+    datingScore,
+    datePledges,
+    shareUrl: `${req.protocol}://${req.get('host')}/kyw/dating/${user.id}`
+  });
+});
+
+// ---- KYW: Dating profile shareable page ----
+app.get('/kyw/dating/:userId', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'keepyourword.html'));
+});
+
 // ---- KYW: Verification types ----
 app.get('/api/kyw/verification-types', (req, res) => {
   res.json(VERIFICATION_TYPES);
@@ -1087,7 +1173,7 @@ app.get('/api/kyw/pending', (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const pending = Object.values(db.pledges).filter(p =>
-    p.mode === 'mutual' &&
+    (p.mode === 'mutual' || p.mode === 'date') &&
     p.status === 'active' &&
     !p.counterpartyAccepted &&
     (p.counterpartyHandle || '').toLowerCase().replace('@', '') === user.handle.toLowerCase()

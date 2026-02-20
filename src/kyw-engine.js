@@ -273,6 +273,13 @@ const VERIFICATION_TYPES = {
     icon: '&#128101;',
     description: 'Another person confirms your completion',
     fields: ['witnessHandle']
+  },
+  date_mutual: {
+    id: 'date_mutual',
+    name: 'Date Confirmation',
+    icon: '&#128140;',
+    description: 'Both people confirm the date happened and rate the experience',
+    fields: ['dateLocation', 'dateTime']
   }
 };
 
@@ -400,6 +407,123 @@ const SELF_PLEDGE_TEMPLATES = [
   }
 ];
 
+// ─── Date Pledge Templates ─────────────────────────────
+const DATE_PLEDGE_TEMPLATES = [
+  {
+    id: 'first_date',
+    name: 'First Date',
+    icon: '&#9749;',
+    category: 'dating',
+    defaultTitle: 'I will show up to our first date',
+    description: 'Promise to actually show up, be on time, and be respectful',
+    pledges: [
+      'I will show up on time',
+      'I will be honest about who I am',
+      'I will be respectful regardless of chemistry',
+      'I will not ghost after the date'
+    ],
+    scoreWeight: 1.5
+  },
+  {
+    id: 'no_ghosting',
+    name: 'No Ghosting',
+    icon: '&#128123;',
+    category: 'dating',
+    defaultTitle: 'I will not ghost — I\'ll communicate honestly',
+    description: 'Commit to giving a clear yes or no instead of disappearing',
+    pledges: [
+      'I will respond within 24 hours',
+      'If I\'m not interested I\'ll say so respectfully',
+      'I won\'t leave someone hanging'
+    ],
+    scoreWeight: 2.0
+  },
+  {
+    id: 'honest_intentions',
+    name: 'Honest Intentions',
+    icon: '&#128172;',
+    category: 'dating',
+    defaultTitle: 'I\'m upfront about what I\'m looking for',
+    description: 'Be clear about your intentions — relationship, casual, friendship',
+    pledges: [
+      'I will be honest about what I want',
+      'I won\'t mislead about my relationship status',
+      'My photos are recent and accurate'
+    ],
+    scoreWeight: 1.8
+  },
+  {
+    id: 'safe_meetup',
+    name: 'Safe Meetup',
+    icon: '&#128737;',
+    category: 'dating',
+    defaultTitle: 'I agree to meet in a safe public place',
+    description: 'Commit to safety-first dating — public locations, respectful boundaries',
+    pledges: [
+      'We will meet in a public place',
+      'I will respect boundaries',
+      'I will not pressure for a private location'
+    ],
+    scoreWeight: 1.5
+  },
+  {
+    id: 'split_fair',
+    name: 'Fair & Clear on $',
+    icon: '&#128176;',
+    category: 'dating',
+    defaultTitle: 'We agree on how to handle the bill upfront',
+    description: 'No awkward bill moments — agree on splitting, treating, or alternating',
+    pledges: [
+      'We will discuss the bill arrangement beforehand',
+      'No guilt-tripping about money',
+      'Keep it fair and comfortable for both'
+    ],
+    scoreWeight: 1.0
+  },
+  {
+    id: 'second_date',
+    name: 'Second Date Promise',
+    icon: '&#10084;',
+    category: 'dating',
+    defaultTitle: 'We both agree to go on a second date',
+    description: 'Lock in that second date — both people commit',
+    pledges: [
+      'We will plan a second date within a week',
+      'We will follow through on the plan',
+      'If plans change, we communicate early'
+    ],
+    scoreWeight: 1.3
+  },
+  {
+    id: 'exclusive_talk',
+    name: 'Exclusivity Talk',
+    icon: '&#128142;',
+    category: 'dating',
+    defaultTitle: 'We agree to be exclusive',
+    description: 'Make the exclusivity commitment official and on-chain',
+    pledges: [
+      'We are exclusively dating each other',
+      'We will communicate openly about our relationship',
+      'If feelings change, we talk first'
+    ],
+    scoreWeight: 2.5
+  },
+  {
+    id: 'real_photos',
+    name: 'Real Photos Pledge',
+    icon: '&#128247;',
+    category: 'dating',
+    defaultTitle: 'My profile photos are real and recent',
+    description: 'Promise your dating profile is honest — no catfishing',
+    pledges: [
+      'All my photos are from the last 12 months',
+      'No extreme filters that change how I look',
+      'My bio is truthful'
+    ],
+    scoreWeight: 1.2
+  }
+];
+
 // ─── Create Pledge ─────────────────────────────────────
 
 function createPledge(userId, pledgeData) {
@@ -459,20 +583,26 @@ function createPledge(userId, pledgeData) {
     mode,
 
     // Mutual pledge fields
-    counterpartyHandle: mode === 'mutual' ? counterpartyHandle : null,
-    counterpartyProvider: mode === 'mutual' ? counterpartyProvider : null,
-    counterpartyAccepted: mode === 'mutual' ? false : null,
+    counterpartyHandle: (mode === 'mutual' || mode === 'date') ? counterpartyHandle : null,
+    counterpartyProvider: (mode === 'mutual' || mode === 'date') ? counterpartyProvider : null,
+    counterpartyAccepted: (mode === 'mutual' || mode === 'date') ? false : null,
     counterpartyUserId: null,
 
     // Self-pledge fields
-    templateId: mode === 'self' ? templateId : null,
-    verificationType: mode === 'self' ? verificationType : (mode === 'mutual' ? 'peer' : 'streak'),
+    templateId: mode === 'self' ? templateId : (mode === 'date' ? templateId : null),
+    verificationType: mode === 'self' ? verificationType : (mode === 'date' ? 'date_mutual' : (mode === 'mutual' ? 'peer' : 'streak')),
     frequency: mode === 'self' ? frequency : null,
     targetDays: mode === 'self' ? targetDays : null,
     currentStreak: 0,
     longestStreak: 0,
     totalCheckins: 0,
     checkins: [],  // { date, time, verified, method, lat?, lng?, photoUrl?, note? }
+
+    // Date-specific fields
+    dateLocation: pledgeData.dateLocation || null,
+    dateTime: pledgeData.dateTime || null,
+    dateSubPledges: pledgeData.dateSubPledges || [],  // individual commitments within the date pledge
+    dateRatings: {},  // { userId: { showedUp: bool, honest: bool, respectful: bool, wouldDateAgain: bool, note: '' } }
 
     // Location verification
     locationName: locationName || null,
@@ -648,15 +778,83 @@ const PLEDGE_CATEGORIES = [
   { id: 'financial', name: 'Financial', icon: '&#128176;', description: 'Money and investment commitments' },
   { id: 'relationship', name: 'Relationship', icon: '&#129309;', description: 'Promises to others' },
   { id: 'education', name: 'Education', icon: '&#128218;', description: 'Learning and growth pledges' },
-  { id: 'social', name: 'Social Impact', icon: '&#127758;', description: 'Community and charity pledges' }
+  { id: 'social', name: 'Social Impact', icon: '&#127758;', description: 'Community and charity pledges' },
+  { id: 'dating', name: 'Dating', icon: '&#128140;', description: 'Dating pledges — show up, be honest, no ghosting' }
 ];
+
+// ─── Calculate Dating Score ─────────────────────────────
+
+function calculateDatingScore(user) {
+  const datePledges = (user.pledges || []).filter(p => p.mode === 'date');
+  if (datePledges.length === 0) return { datingScore: 0, grade: 'NEW', totalDates: 0, showedUp: 0, ghosted: 0, badges: [] };
+
+  const kept = datePledges.filter(p => p.status === 'kept').length;
+  const broken = datePledges.filter(p => p.status === 'broken').length;
+  const total = kept + broken;
+  if (total === 0) return { datingScore: 50, grade: 'PENDING', totalDates: datePledges.length, showedUp: 0, ghosted: 0, badges: [] };
+
+  const ratio = kept / total;
+  let score = Math.round(ratio * 80);
+
+  // Volume bonus — more dates completed = more trustworthy
+  score += Math.min(10, Math.floor(total / 2));
+
+  // Rating bonus from counterparty feedback
+  let positiveRatings = 0;
+  let totalRatings = 0;
+  datePledges.forEach(p => {
+    Object.values(p.dateRatings || {}).forEach(r => {
+      totalRatings++;
+      if (r.showedUp) positiveRatings++;
+      if (r.honest) positiveRatings++;
+      if (r.respectful) positiveRatings++;
+      if (r.wouldDateAgain) positiveRatings++;
+    });
+  });
+  if (totalRatings > 0) score += Math.min(10, Math.round((positiveRatings / (totalRatings * 4)) * 10));
+
+  score = Math.min(100, Math.max(0, score));
+
+  // Badges
+  const badges = [];
+  if (kept >= 1) badges.push('&#9989; Shows Up');
+  if (kept >= 5) badges.push('&#11088; Reliable');
+  if (kept >= 10) badges.push('&#128142; Consistent');
+  if (broken === 0 && total >= 3) badges.push('&#128123; Never Ghosted');
+  const noGhostPledges = datePledges.filter(p => p.templateId === 'no_ghosting' && p.status === 'kept').length;
+  if (noGhostPledges >= 3) badges.push('&#128172; Good Communicator');
+  const honestPledges = datePledges.filter(p => p.templateId === 'honest_intentions' && p.status === 'kept').length;
+  if (honestPledges >= 2) badges.push('&#128588; Honest About Intentions');
+  const safeCount = datePledges.filter(p => p.templateId === 'safe_meetup' && p.status === 'kept').length;
+  if (safeCount >= 2) badges.push('&#128737; Safety-Conscious');
+
+  let grade;
+  if (score >= 90) grade = 'DIAMOND';
+  else if (score >= 75) grade = 'GOLD';
+  else if (score >= 60) grade = 'SILVER';
+  else if (score >= 40) grade = 'BRONZE';
+  else grade = 'UNTRUSTWORTHY';
+
+  return {
+    datingScore: score,
+    grade,
+    totalDates: datePledges.length,
+    showedUp: kept,
+    ghosted: broken,
+    badges,
+    positiveRatings,
+    totalRatings
+  };
+}
 
 module.exports = {
   ESCROW_CURRENCIES,
   ESCROW_RULE_PRESETS,
   VERIFICATION_TYPES,
   SELF_PLEDGE_TEMPLATES,
+  DATE_PLEDGE_TEMPLATES,
   calculateSocialScore,
+  calculateDatingScore,
   createPledge,
   resolvePledge,
   processCheckin,
