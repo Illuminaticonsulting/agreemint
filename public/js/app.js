@@ -79,6 +79,8 @@
   }
 
   // Auth Tabs
+  var socialLogin = document.querySelector('.social-divider-wrap:not([id])') || document.querySelectorAll('.social-divider')[0]?.parentElement;
+  var socialRegister = document.getElementById('social-buttons-register');
   document.querySelectorAll('.auth-tab').forEach(function(tab) {
     tab.addEventListener('click', function() {
       authMode = tab.dataset.tab;
@@ -86,6 +88,13 @@
       tab.classList.add('active');
       loginForm.style.display = authMode === 'login' ? 'block' : 'none';
       registerForm.style.display = authMode === 'register' ? 'block' : 'none';
+      // Toggle social buttons
+      var loginSocial = loginForm.nextElementSibling;
+      if (loginSocial && loginSocial.classList.contains('social-divider')) {
+        loginSocial.style.display = authMode === 'login' ? 'block' : 'none';
+        loginSocial.nextElementSibling.style.display = authMode === 'login' ? 'flex' : 'none';
+      }
+      if (socialRegister) socialRegister.style.display = authMode === 'register' ? 'block' : 'none';
       loginError.style.display = 'none';
     });
   });
@@ -1168,9 +1177,31 @@
   };
 
   /* ========================================
-   * AUTO LOGIN
+   * AUTO LOGIN / OAUTH CALLBACK
    * ======================================== */
-  if (authToken) {
+  // Handle OAuth callback: ?token=xxx&email=xxx&name=xxx&tier=xxx&userId=xxx
+  var urlParams = new URLSearchParams(window.location.search);
+  var oauthToken = urlParams.get('token');
+  if (oauthToken) {
+    authToken = oauthToken;
+    userEmail = urlParams.get('email') || '';
+    userName = urlParams.get('name') || userEmail;
+    userTier = urlParams.get('tier') || 'free';
+    userId = urlParams.get('userId') || '';
+    localStorage.setItem('authToken', authToken);
+    localStorage.setItem('userEmail', userEmail);
+    localStorage.setItem('userName', userName);
+    localStorage.setItem('userTier', userTier);
+    localStorage.setItem('userId', userId);
+    // Clean URL
+    window.history.replaceState({}, document.title, '/');
+    toast('Signed in with ' + (urlParams.get('provider') || 'social account'), 'success');
+    showApp();
+  } else if (urlParams.get('auth_error')) {
+    loginError.textContent = decodeURIComponent(urlParams.get('auth_error'));
+    loginError.style.display = 'block';
+    window.history.replaceState({}, document.title, '/');
+  } else if (authToken) {
     showApp();
   }
 

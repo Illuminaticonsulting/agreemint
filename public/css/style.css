@@ -989,6 +989,55 @@ a:hover { color: var(--accent-hover); }
 .auth-tab:hover { color: var(--text-primary); }
 .auth-tab.active { background: var(--accent); color: white; }
 
+/* ---- Social Login ---- */
+.social-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0 16px;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.social-divider::before,
+.social-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.social-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.social-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.social-btn:hover {
+  border-color: var(--text-muted);
+  background: var(--bg-secondary);
+  transform: translateY(-1px);
+}
+.social-google:hover { border-color: #4285F4; }
+.social-apple:hover { border-color: #a2aaad; }
+.social-x:hover { border-color: #1DA1F2; }
+.social-btn svg { flex-shrink: 0; }
+
 /* ---- Marketplace Cards ---- */
 .marketplace-grid {
   display: grid;

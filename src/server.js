@@ -323,6 +323,300 @@ app.post('/api/auth/logout', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/auth/verify', requireAuth, (req, res) => {
+  res.json({ user: req.user });
+});
+
+app.post('/api/auth/logout', requireAuth, (req, res) => {
+  const token = req.headers['x-auth-token'];
+  delete authTokens[token];
+  res.json({ ok: true });
+});
+
+// ============================================================
+//   OAUTH SOCIAL LOGIN (Google, Apple, X/Twitter)
+// ============================================================
+
+const OAUTH = {
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenUrl: 'https://oauth2.googleapis.com/token',
+    userInfoUrl: 'https://www.googleapis.com/oauth2/v3/userinfo',
+    scopes: 'openid email profile',
+  },
+  apple: {
+    clientId: process.env.APPLE_CLIENT_ID,       // Services ID (e.g., com.agreemint.signin)
+    teamId: process.env.APPLE_TEAM_ID,
+    keyId: process.env.APPLE_KEY_ID,
+    privateKey: (process.env.APPLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    authUrl: 'https://appleid.apple.com/auth/authorize',
+    tokenUrl: 'https://appleid.apple.com/auth/token',
+    scopes: 'name email',
+  },
+  twitter: {
+    clientId: process.env.TWITTER_CLIENT_ID,
+    clientSecret: process.env.TWITTER_CLIENT_SECRET,
+    authUrl: 'https://twitter.com/i/oauth2/authorize',
+    tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+    userInfoUrl: 'https://api.twitter.com/2/users/me',
+    scopes: 'users.read tweet.read offline.access',
+  }
+};
+
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
+// Helper: find or create social user
+async function findOrCreateSocialUser(provider, profile) {
+  const email = (profile.email || `${provider}_${profile.id}@social.agreemint`).toLowerCase().trim();
+  
+  // Check if user exists
+  let user = Object.values(db.registeredUsers).find(u => u.email === email);
+  if (user) {
+    // Update social info
+    if (!user.socialProviders) user.socialProviders = {};
+    user.socialProviders[provider] = { id: profile.id, linkedAt: new Date().toISOString() };
+    user.lastLoginAt = new Date().toISOString();
+    if (profile.name && !user.name) user.name = profile.name;
+    if (profile.picture && !user.picture) user.picture = profile.picture;
+    saveDB();
+    return user;
+  }
+
+  // Create new user (no password for social login)
+  const apiKey = `am_${require('crypto').randomBytes(24).toString('hex')}`;
+  user = {
+    id: uuidv4(),
+    email,
+    passwordHash: null,
+    name: profile.name || email.split('@')[0],
+    company: '',
+    tier: 'free',
+    role: 'user',
+    apiKey,
+    apiKeyActive: false,
+    verified: !!profile.email_verified,
+    verificationCode: null,
+    verificationExpires: null,
+    socialProviders: { [provider]: { id: profile.id, linkedAt: new Date().toISOString() } },
+    picture: profile.picture || null,
+    stripeCustomerId: null,
+    stripeSubscriptionId: null,
+    usage: { agreementsThisMonth: 0, lastResetDate: new Date().toISOString(), totalAgreements: 0, totalEscrows: 0, totalIPRegistrations: 0 },
+    createdAt: new Date().toISOString(),
+    lastLoginAt: new Date().toISOString()
+  };
+  
+  db.registeredUsers[user.id] = user;
+  db.apiKeys[apiKey] = { userId: user.id, active: false, createdAt: user.createdAt };
+  saveDB();
+  return user;
+}
+
+// Create auth token and redirect
+function socialAuthRedirect(res, user, provider) {
+  const token = uuidv4();
+  authTokens[token] = { email: user.email, name: user.name, role: user.role, tier: user.tier, userId: user.id, createdAt: Date.now() };
+  const params = new URLSearchParams({
+    token, email: user.email, name: user.name, tier: user.tier, userId: user.id, provider
+  });
+  res.redirect(`/?${params.toString()}`);
+}
+
+function socialAuthError(res, msg) {
+  res.redirect(`/?auth_error=${encodeURIComponent(msg)}`);
+}
+
+// Store PKCE verifiers for Twitter
+const oauthStates = {};
+
+// ---- Google OAuth ----
+app.get('/api/auth/google', (req, res) => {
+  if (!OAUTH.google.clientId) return socialAuthError(res, 'Google login not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env');
+  const state = uuidv4();
+  oauthStates[state] = { provider: 'google', ts: Date.now() };
+  const params = new URLSearchParams({
+    client_id: OAUTH.google.clientId,
+    redirect_uri: `${BASE_URL}/api/auth/google/callback`,
+    response_type: 'code',
+    scope: OAUTH.google.scopes,
+    state,
+    access_type: 'offline',
+    prompt: 'select_account'
+  });
+  res.redirect(`${OAUTH.google.authUrl}?${params.toString()}`);
+});
+
+app.get('/api/auth/google/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    if (!oauthStates[state]) return socialAuthError(res, 'Invalid OAuth state');
+    delete oauthStates[state];
+
+    // Exchange code for tokens
+    const tokenRes = await axios.post(OAUTH.google.tokenUrl, {
+      code,
+      client_id: OAUTH.google.clientId,
+      client_secret: OAUTH.google.clientSecret,
+      redirect_uri: `${BASE_URL}/api/auth/google/callback`,
+      grant_type: 'authorization_code'
+    });
+
+    // Get user info
+    const userRes = await axios.get(OAUTH.google.userInfoUrl, {
+      headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
+    });
+
+    const profile = {
+      id: userRes.data.sub,
+      email: userRes.data.email,
+      name: userRes.data.name,
+      picture: userRes.data.picture,
+      email_verified: userRes.data.email_verified
+    };
+
+    const user = await findOrCreateSocialUser('google', profile);
+    socialAuthRedirect(res, user, 'Google');
+  } catch (err) {
+    console.error('Google OAuth error:', err.response?.data || err.message);
+    socialAuthError(res, 'Google sign-in failed: ' + (err.response?.data?.error_description || err.message));
+  }
+});
+
+// ---- Apple OAuth ----
+app.get('/api/auth/apple', (req, res) => {
+  if (!OAUTH.apple.clientId) return socialAuthError(res, 'Apple login not configured. Set APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY in .env');
+  const state = uuidv4();
+  oauthStates[state] = { provider: 'apple', ts: Date.now() };
+  const params = new URLSearchParams({
+    client_id: OAUTH.apple.clientId,
+    redirect_uri: `${BASE_URL}/api/auth/apple/callback`,
+    response_type: 'code',
+    scope: OAUTH.apple.scopes,
+    state,
+    response_mode: 'form_post'
+  });
+  res.redirect(`${OAUTH.apple.authUrl}?${params.toString()}`);
+});
+
+app.post('/api/auth/apple/callback', express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const { code, state, user: appleUser } = req.body;
+    if (!oauthStates[state]) return socialAuthError(res, 'Invalid OAuth state');
+    delete oauthStates[state];
+
+    // Generate Apple client secret JWT
+    const jwt = require('jsonwebtoken');
+    const clientSecret = jwt.sign({}, OAUTH.apple.privateKey, {
+      algorithm: 'ES256',
+      expiresIn: '5m',
+      audience: 'https://appleid.apple.com',
+      issuer: OAUTH.apple.teamId,
+      subject: OAUTH.apple.clientId,
+      keyid: OAUTH.apple.keyId
+    });
+
+    // Exchange code for tokens
+    const tokenRes = await axios.post(OAUTH.apple.tokenUrl, new URLSearchParams({
+      code,
+      client_id: OAUTH.apple.clientId,
+      client_secret: clientSecret,
+      redirect_uri: `${BASE_URL}/api/auth/apple/callback`,
+      grant_type: 'authorization_code'
+    }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }});
+
+    // Decode ID token (Apple sends a JWT)
+    const idToken = jwt.decode(tokenRes.data.id_token);
+    let userName = '';
+    if (appleUser) {
+      try { const u = JSON.parse(appleUser); userName = `${u.name?.firstName || ''} ${u.name?.lastName || ''}`.trim(); } catch(e){}
+    }
+
+    const profile = {
+      id: idToken.sub,
+      email: idToken.email,
+      name: userName,
+      email_verified: idToken.email_verified
+    };
+
+    const user = await findOrCreateSocialUser('apple', profile);
+    socialAuthRedirect(res, user, 'Apple');
+  } catch (err) {
+    console.error('Apple OAuth error:', err.message);
+    socialAuthError(res, 'Apple sign-in failed: ' + err.message);
+  }
+});
+
+// ---- X/Twitter OAuth 2.0 (PKCE) ----
+app.get('/api/auth/twitter', (req, res) => {
+  if (!OAUTH.twitter.clientId) return socialAuthError(res, 'X/Twitter login not configured. Set TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET in .env');
+  const state = uuidv4();
+  // PKCE challenge
+  const codeVerifier = require('crypto').randomBytes(32).toString('base64url');
+  const codeChallenge = require('crypto').createHash('sha256').update(codeVerifier).digest('base64url');
+  oauthStates[state] = { provider: 'twitter', ts: Date.now(), codeVerifier };
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: OAUTH.twitter.clientId,
+    redirect_uri: `${BASE_URL}/api/auth/twitter/callback`,
+    scope: OAUTH.twitter.scopes,
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256'
+  });
+  res.redirect(`${OAUTH.twitter.authUrl}?${params.toString()}`);
+});
+
+app.get('/api/auth/twitter/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    if (!oauthStates[state]) return socialAuthError(res, 'Invalid OAuth state');
+    const { codeVerifier } = oauthStates[state];
+    delete oauthStates[state];
+
+    // Exchange code for tokens (Basic auth)
+    const basicAuth = Buffer.from(`${OAUTH.twitter.clientId}:${OAUTH.twitter.clientSecret}`).toString('base64');
+    const tokenRes = await axios.post(OAUTH.twitter.tokenUrl, new URLSearchParams({
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: `${BASE_URL}/api/auth/twitter/callback`,
+      code_verifier: codeVerifier
+    }).toString(), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${basicAuth}`
+      }
+    });
+
+    // Get user info
+    const userRes = await axios.get(OAUTH.twitter.userInfoUrl, {
+      headers: { Authorization: `Bearer ${tokenRes.data.access_token}` },
+      params: { 'user.fields': 'profile_image_url,name,username' }
+    });
+
+    const tw = userRes.data.data;
+    const profile = {
+      id: tw.id,
+      email: null, // Twitter doesn't always provide email
+      name: tw.name,
+      picture: tw.profile_image_url
+    };
+
+    const user = await findOrCreateSocialUser('twitter', profile);
+    socialAuthRedirect(res, user, 'X');
+  } catch (err) {
+    console.error('Twitter OAuth error:', err.response?.data || err.message);
+    socialAuthError(res, 'X sign-in failed: ' + (err.response?.data?.error_description || err.message));
+  }
+});
+
+// Clean up stale OAuth states every hour
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60 * 1000; // 10 min
+  Object.keys(oauthStates).forEach(k => { if (oauthStates[k].ts < cutoff) delete oauthStates[k]; });
+}, 60 * 60 * 1000);
+
 // ============================================================
 //   TEMPLATE & CONFIG ENDPOINTS
 // ============================================================
@@ -2887,6 +3181,11 @@ app.get('/api/health', async (req, res) => {
     whiteLabel: { enabled: true, tenants: Object.keys(db.whitelabelTenants).length },
     soc2: { enabled: true, complianceScore: calculateComplianceScore().score, auditLogs: db.auditLogs.length, openIncidents: Object.values(db.incidents).filter(i => i.status !== 'closed').length },
     eSignature: { enabled: true, methods: Object.keys(SIGNATURE_METHODS).length, workflows: Object.keys(db.signingWorkflows).length },
+    socialLogin: {
+      google: !!OAUTH.google.clientId,
+      apple: !!OAUTH.apple.clientId,
+      twitter: !!OAUTH.twitter.clientId
+    },
     uptime: process.uptime()
   });
 });
