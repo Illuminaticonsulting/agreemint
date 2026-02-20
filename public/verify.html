@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Agreement - AgreeMint</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --bg: #0a0a0f; --bg2: #12121a; --bg3: #1a1a2e; --text: #e4e4e7; --muted: #71717a; --accent: #6366f1; --green: #22c55e; --red: #ef4444; --border: #27272a; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    .logo { font-size: 20px; font-weight: 700; color: var(--accent); }
+    .container { max-width: 700px; margin: 40px auto; padding: 0 24px; flex: 1; width: 100%; }
+    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 32px; margin-bottom: 24px; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    p { color: #a1a1aa; line-height: 1.6; }
+    code { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 12px; word-break: break-all; }
+    .verified { border-color: var(--green); }
+    .verified h2 { color: var(--green); }
+    .unverified { border-color: var(--red); }
+    .unverified h2 { color: var(--red); }
+    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .row:last-child { border: none; }
+    .label { color: var(--muted); }
+    .footer { text-align: center; padding: 24px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+    .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; margin: 20px auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <span style="font-size:24px;">&#9878;</span>
+    <span class="logo">AgreeMint</span>
+    <span style="color:var(--muted);font-size:13px;margin-left:8px;">On-Chain Verification</span>
+  </header>
+  <main class="container" id="main">
+    <div class="card">
+      <h1>&#9939; Verifying Agreement...</h1>
+      <div class="spinner"></div>
+    </div>
+  </main>
+  <footer class="footer">AgreeMint | Story Protocol Verified | SHA-256 Document Integrity</footer>
+
+  <script>
+    (async function() {
+      const main = document.getElementById('main');
+      const id = window.location.pathname.split('/').pop();
+      if (!id) { main.innerHTML = '<div class="card"><h1>Invalid Link</h1><p>No agreement ID provided.</p></div>'; return; }
+
+      try {
+        const res = await fetch('/api/agreements/' + id + '/proof');
+        if (!res.ok) throw new Error('Agreement not found');
+        const d = await res.json();
+
+        main.innerHTML = '<div class="card ' + (d.verified ? 'verified' : 'unverified') + '">' +
+          '<h2>' + (d.verified ? '&#10004; Document Verified' : '&#10008; Verification Failed') + '</h2>' +
+          '<p style="margin:12px 0;">' + (d.verified ? 'This agreement has been verified by AgreeMint.' : 'Could not verify this document.') + '</p>' +
+          '</div>' +
+          '<div class="card">' +
+          '<h2 style="font-size:16px;margin-bottom:16px;">Agreement Details</h2>' +
+          '<div class="row"><span class="label">Title</span><span>' + esc(d.agreement.title) + '</span></div>' +
+          '<div class="row"><span class="label">Type</span><span>' + d.agreement.type + '</span></div>' +
+          '<div class="row"><span class="label">Version</span><span>' + d.agreement.version + '</span></div>' +
+          '<div class="row"><span class="label">Content Hash</span><span><code>' + d.agreement.contentHash + '</code></span></div>' +
+          '</div>' +
+          '<div class="card">' +
+          '<h2 style="font-size:16px;margin-bottom:16px;">Blockchain Record</h2>' +
+          '<div class="row"><span class="label">Network</span><span>' + (d.chain.network || 'Not registered') + '</span></div>' +
+          (d.chain.txHash ? '<div class="row"><span class="label">Transaction</span><span><a href="' + d.verification.explorerUrl + '" target="_blank">' + d.chain.txHash.substring(0,24) + '...</a></span></div>' : '') +
+          (d.chain.blockNumber ? '<div class="row"><span class="label">Block</span><span>' + d.chain.blockNumber + '</span></div>' : '') +
+          (d.chain.ipAssetId ? '<div class="row"><span class="label">IP Asset ID</span><span><code>' + d.chain.ipAssetId + '</code></span></div>' : '') +
+          (d.chain.registeredAt ? '<div class="row"><span class="label">Registered</span><span>' + new Date(d.chain.registeredAt).toLocaleString() + '</span></div>' : '') +
+          (!d.chain.txHash ? '<div style="padding:12px 0;color:var(--muted);font-size:13px;">This agreement has not yet been registered on-chain. The content hash can still be used to verify document integrity.</div>' : '') +
+          '</div>' +
+          (d.escrow ? '<div class="card"><h2 style="font-size:16px;margin-bottom:16px;">Escrow</h2>' +
+            '<div class="row"><span class="label">Escrow ID</span><span>#' + d.escrow.escrowId + '</span></div>' +
+            '<div class="row"><span class="label">State</span><span>' + d.escrow.state + '</span></div>' +
+            '<div class="row"><span class="label">Network</span><span>' + d.escrow.network + '</span></div></div>' : '') +
+          '<div class="card" style="text-align:center;"><p style="font-size:13px;">Verified by <strong>AgreeMint</strong> | <a href="https://docs.kingpinstrategies.com">docs.kingpinstrategies.com</a></p></div>';
+      } catch(e) {
+        main.innerHTML = '<div class="card unverified"><h2>&#10008; Verification Failed</h2><p style="margin-top:8px;">' + e.message + '</p></div>';
+      }
+
+      function esc(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+    })();
+  </script>
+</body>
+</html>

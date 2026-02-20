@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Agreement - AgreeMint</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-tertiary: #1a1a2e;
+      --text: #e4e4e7;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #6366f1;
+      --green: #22c55e;
+      --red: #ef4444;
+      --border: #27272a;
+      --radius: 12px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    .header { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    .logo { font-size: 20px; font-weight: 700; color: var(--accent); }
+    .container { max-width: 800px; margin: 40px auto; padding: 0 24px; flex: 1; width: 100%; }
+    .card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; margin-bottom: 24px; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    h2 { font-size: 18px; margin-bottom: 16px; }
+    h3 { font-size: 15px; margin-bottom: 12px; color: var(--text-secondary); }
+    p { color: var(--text-secondary); line-height: 1.6; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+    .detail-item { padding: 12px; background: var(--bg-tertiary); border-radius: 8px; }
+    .detail-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 4px; }
+    .detail-value { font-size: 14px; }
+    .content-body { background: var(--bg-tertiary); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; max-height: 500px; overflow-y: auto; line-height: 1.7; font-size: 14px; }
+    .content-body h1, .content-body h2, .content-body h3 { color: var(--text); margin: 16px 0 8px; }
+    .content-body h1 { font-size: 20px; }
+    .content-body h2 { font-size: 17px; }
+    .content-body h3 { font-size: 15px; }
+    .content-body p { margin-bottom: 12px; }
+    .content-body ul, .content-body ol { padding-left: 24px; margin-bottom: 12px; }
+    .content-body li { margin-bottom: 4px; }
+    .sign-section { text-align: center; padding: 32px; background: var(--bg-tertiary); border-radius: var(--radius); }
+    .sign-section h2 { margin-bottom: 8px; }
+    .form-input { width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
+    .form-input:focus { border-color: var(--accent); }
+    .btn { padding: 12px 28px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 16px 0; font-size: 14px; }
+    .checkbox-row input { accent-color: var(--accent); width: 18px; height: 18px; }
+    .signed-badge { background: var(--green); color: white; padding: 8px 20px; border-radius: 8px; display: inline-block; font-weight: 600; }
+    .error-msg { background: #ef444420; border: 1px solid var(--red); border-radius: 8px; padding: 16px; color: var(--red); margin-bottom: 16px; display: none; }
+    .footer { text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); }
+    .loading { text-align: center; padding: 60px; }
+    .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 600px) { .detail-grid { grid-template-columns: 1fr; } .container { padding: 0 16px; margin: 20px auto; } .card { padding: 20px; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <header class="header">
+    <span style="font-size:24px;">&#9878;</span>
+    <span class="logo">AgreeMint</span>
+    <span style="color:var(--text-muted);font-size:13px;margin-left:8px;">Secure Document Signing</span>
+  </header>
+
+  <main class="container" id="main">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Loading agreement...</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    Cryptographically verified by AgreeMint | Documents are hashed with SHA-256
+  </footer>
+
+  <script>
+    (async function() {
+      const main = document.getElementById('main');
+      const pathParts = window.location.pathname.split('/');
+      const agreementId = pathParts[pathParts.length - 1];
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+
+      if (!agreementId || !token) {
+        main.innerHTML = '<div class="card" style="text-align:center;"><h1>Invalid Link</h1><p style="margin-top:12px;">This signing link is missing required parameters.</p></div>';
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/public/agreements/${agreementId}?token=${token}`);
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to load agreement');
+        }
+        const data = await res.json();
+        const a = data;
+        const contentHtml = marked.parse(a.content);
+
+        main.innerHTML = `
+          <div class="card">
+            <h1>${esc(a.title)}</h1>
+            <p style="margin-bottom:20px;">${a.type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} | ${a.jurisdiction}</p>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <div class="detail-label">Status</div>
+                <div class="detail-value">${a.status.toUpperCase()}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Version</div>
+                <div class="detail-value">${a.version}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Created</div>
+                <div class="detail-value">${new Date(a.createdAt).toLocaleDateString()}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Parties</div>
+                <div class="detail-value">${a.parties.map(p => p.name).join(', ')}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Agreement Content</h2>
+            <div class="content-body">${contentHtml}</div>
+          </div>
+
+          <div class="card">
+            <div class="error-msg" id="sign-error"></div>
+            ${a.status === 'signed' ? '<div style="text-align:center;"><span class="signed-badge">&#10004; Fully Executed</span><p style="margin-top:12px;">This agreement has been signed by all parties.</p></div>' : `
+              <div class="sign-section">
+                <h2>&#9998; Sign This Agreement</h2>
+                <p style="margin-bottom:20px;">By signing, you agree to the terms outlined in this agreement.</p>
+                <div style="max-width:400px;margin:0 auto;">
+                  <input class="form-input" id="sign-name" placeholder="Your full legal name" style="margin-bottom:12px;">
+                  <input class="form-input" id="sign-email" placeholder="Your email address" style="margin-bottom:12px;">
+                  <div class="checkbox-row" style="justify-content:center;">
+                    <input type="checkbox" id="sign-agree">
+                    <label for="sign-agree">I have read and agree to this agreement</label>
+                  </div>
+                  <button class="btn btn-primary" id="sign-btn" onclick="signDocument()" disabled style="margin-top:12px;">Sign Agreement</button>
+                </div>
+              </div>
+            `}
+          </div>
+        `;
+
+        const checkbox = document.getElementById('sign-agree');
+        const signBtn = document.getElementById('sign-btn');
+        if (checkbox && signBtn) {
+          checkbox.addEventListener('change', () => { signBtn.disabled = !checkbox.checked; });
+        }
+      } catch (err) {
+        main.innerHTML = `<div class="card" style="text-align:center;"><h1>&#9888; Error</h1><p style="margin-top:12px;">${esc(err.message)}</p></div>`;
+      }
+
+      window.signDocument = async function() {
+        const name = document.getElementById('sign-name').value.trim();
+        const email = document.getElementById('sign-email').value.trim();
+        const errEl = document.getElementById('sign-error');
+
+        if (!name || !email) {
+          errEl.textContent = 'Please enter your name and email.';
+          errEl.style.display = 'block';
+          return;
+        }
+
+        const btn = document.getElementById('sign-btn');
+        btn.disabled = true;
+        btn.textContent = 'Signing...';
+
+        try {
+          const res = await fetch(`/api/agreements/${agreementId}/sign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, name, email })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Signing failed');
+
+          btn.parentElement.parentElement.innerHTML = `
+            <div style="text-align:center;">
+              <span class="signed-badge">&#10004; Signed Successfully</span>
+              <p style="margin-top:12px;">Your signature has been recorded and cryptographically verified.</p>
+              <p style="margin-top:8px;font-size:12px;color:var(--text-muted);">Signature hash: ${data.signature ? data.signature.hash : 'verified'}</p>
+            </div>
+          `;
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Sign Agreement';
+        }
+      };
+
+      function esc(s) {
+        if (!s) return '';
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+    })();
+  </script>
+</body>
+</html>

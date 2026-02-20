@@ -1,0 +1,24 @@
+{
+  "name": "agreemint",
+  "version": "1.0.0",
+  "description": "AgreeMint — Institutional-Grade AI Agreement Platform. Generate, negotiate, sign, verify, and manage legal agreements with AI intelligence, cryptographic verification, and compliance automation.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "marked": "^12.0.0",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.28.0",
+    "pdfkit": "^0.13.0",
+    "uuid": "^9.0.0"
+  },
+  "keywords": ["ai", "agreements", "contracts", "nda", "legal", "compliance", "digital-signature", "institutional"],
+  "author": "Illuminaticonsulting",
+  "license": "MIT"
+}
