@@ -20,13 +20,53 @@
         <p>Institutional-Grade AI Agreement Platform</p>
       </div>
       <div id="login-error" class="login-error"></div>
+
+      <!-- Login Form -->
       <form id="login-form">
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="login-password" class="form-input" placeholder="Enter password" required autofocus>
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" data-tab="login">Sign In</button>
+          <button type="button" class="auth-tab" data-tab="register">Register</button>
         </div>
-        <button type="submit" class="btn btn-primary">Sign In</button>
+
+        <!-- Login Fields -->
+        <div id="login-fields">
+          <div class="form-group">
+            <label>Email <span style="color:var(--text-muted);font-weight:400;">(or leave blank for legacy login)</span></label>
+            <input type="email" id="login-email" class="form-input" placeholder="you@company.com" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="login-password" class="form-input" placeholder="Enter password" required autofocus>
+          </div>
+          <button type="submit" class="btn btn-primary">Sign In</button>
+        </div>
+
+        <!-- Register Fields (hidden by default) -->
+        <div id="register-fields" style="display:none;">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="reg-name" class="form-input" placeholder="John Doe" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="reg-email" class="form-input" placeholder="you@company.com" required autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label>Company <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+            <input type="text" id="reg-company" class="form-input" placeholder="Acme Corp" autocomplete="organization">
+          </div>
+          <div class="form-group">
+            <label>Password <span style="color:var(--text-muted);font-weight:400;">(min 8 chars)</span></label>
+            <input type="password" id="reg-password" class="form-input" placeholder="Strong password" required minlength="8">
+          </div>
+          <div class="form-group">
+            <label>Confirm Password</label>
+            <input type="password" id="reg-password2" class="form-input" placeholder="Repeat password" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Create Account</button>
+        </div>
       </form>
+
       <p style="text-align:center; margin-top:20px; font-size:12px; color:var(--text-muted)">
         Cryptographically verified agreements with AI intelligence
       </p>
@@ -55,6 +95,11 @@
           <button class="nav-item" data-page="templates"><span class="nav-icon">&#128203;</span> Templates</button>
         </div>
         <div class="nav-section">
+          <div class="nav-section-label">Marketplace</div>
+          <button class="nav-item" data-page="marketplace"><span class="nav-icon">&#128722;</span> Template Store</button>
+          <button class="nav-item" data-page="legal-marketplace"><span class="nav-icon">&#9878;</span> Legal Professionals</button>
+        </div>
+        <div class="nav-section">
           <div class="nav-section-label">AI Tools</div>
           <button class="nav-item" data-page="analyze"><span class="nav-icon">&#128270;</span> Analyze Agreement</button>
           <button class="nav-item" data-page="chat"><span class="nav-icon">&#128172;</span> Legal AI Chat</button>
@@ -63,6 +108,12 @@
           <div class="nav-section-label">Blockchain</div>
           <button class="nav-item" data-page="escrow"><span class="nav-icon">&#128274;</span> Escrow</button>
           <button class="nav-item" data-page="onchain"><span class="nav-icon">&#9939;</span> On-Chain Verify</button>
+          <button class="nav-item" data-page="wallet"><span class="nav-icon">&#128179;</span> Wallet</button>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Account</div>
+          <button class="nav-item" data-page="analytics"><span class="nav-icon">&#128200;</span> Analytics</button>
+          <button class="nav-item" data-page="profile"><span class="nav-icon">&#128100;</span> Profile &amp; Settings</button>
         </div>
         <div class="nav-section">
           <div class="nav-section-label">Free Tools</div>
@@ -102,6 +153,8 @@
   <div class="toast-container" id="toast-container"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

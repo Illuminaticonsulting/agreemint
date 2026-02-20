@@ -39,9 +39,27 @@ const { COMMISSION_RATES, SERVICE_TYPES, SPECIALIZATIONS, SEED_PROFESSIONALS, re
 const { WHITELABEL_TIERS, DEFAULT_BRAND, createTenant, updateBrand, generateCustomCSS, generateBrandedEmail, getPDFBranding, resolveTenant, tenantHasFeature, checkTenantLimits } = require('./whitelabel-engine');
 const { AUDIT_CATEGORIES, SEVERITY, AUDIT_ACTIONS, COMPLIANCE_CHECKLIST, RETENTION_POLICIES, createAuditLog, hashAuditLog, generateSecurityPolicy, createIncident, updateIncident, createDSAR, collectUserData, calculateComplianceScore, getSecurityHeaders } = require('./soc2-engine');
 
+const rateLimit = require('express-rate-limit');
+
 const app = express();
 const PORT = process.env.PORT || 3500;
 const PLATFORM = process.env.PLATFORM_NAME || 'AgreeMint';
+
+// ---- Rate Limiting ----
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200,                   // max 200 requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,                    // stricter for auth
+  message: { error: 'Too many login attempts, please try again later.' }
+});
+app.use('/api/', apiLimiter);
+app.use('/api/auth/', authLimiter);
 
 // ---- Data Directory ----
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -158,6 +176,7 @@ const USERS = {
   kingpin: { name: 'Kingpin', role: 'admin' }
 };
 let authTokens = {};
+const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 function requireAuth(req, res, next) {
   const token = req.headers['x-auth-token'] || req.query.token;
@@ -178,6 +197,12 @@ function requireAuth(req, res, next) {
 
   if (!token || !authTokens[token]) {
     return res.status(401).json({ error: 'Authentication required' });
+  }
+  // Check token expiry
+  const tokenData = authTokens[token];
+  if (tokenData.createdAt && Date.now() - tokenData.createdAt > TOKEN_EXPIRY_MS) {
+    delete authTokens[token];
+    return res.status(401).json({ error: 'Session expired, please login again' });
   }
   req.user = authTokens[token];
   next();
@@ -212,7 +237,7 @@ app.post('/api/auth/register', async (req, res) => {
     db.apiKeys[user.apiKey] = { userId: user.id, active: false, createdAt: user.createdAt };
 
     const token = uuidv4();
-    authTokens[token] = { email: user.email, name: user.name, role: user.role, tier: user.tier, userId: user.id };
+    authTokens[token] = { email: user.email, name: user.name, role: user.role, tier: user.tier, userId: user.id, createdAt: Date.now() };
 
     // Send verification email
     const verifyEmail = generateVerificationEmail(user);
@@ -266,7 +291,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     user.lastLoginAt = new Date().toISOString();
     const token = uuidv4();
-    authTokens[token] = { email: user.email, name: user.name, role: user.role, tier: user.tier, userId: user.id };
+    authTokens[token] = { email: user.email, name: user.name, role: user.role, tier: user.tier, userId: user.id, createdAt: Date.now() };
     saveDB();
     return res.json({
       token,
@@ -279,7 +304,7 @@ app.post('/api/auth/login', async (req, res) => {
   const user = USERS[pwd];
   if (user) {
     const token = uuidv4();
-    authTokens[token] = { email: pwd, name: user.name, role: user.role, tier: 'enterprise', loginAt: new Date().toISOString() };
+    authTokens[token] = { email: pwd, name: user.name, role: user.role, tier: 'enterprise', loginAt: new Date().toISOString(), createdAt: Date.now() };
     return res.json({ token, user: { email: pwd, name: user.name, role: user.role, tier: 'enterprise' } });
   }
   res.status(401).json({ error: 'Wrong credentials' });
