@@ -28,6 +28,14 @@ const { initStripe, createSubscriptionCheckout, createOneTimeCheckout, createTem
 const { PLATFORM_TEMPLATES, createTemplate, fillTemplate, addReview, recordPurchase, searchTemplates } = require('./marketplace-engine');
 const { handleInteraction, registerCommands, PER_USE_PRICING, verifyDiscordSignature } = require('./discord-bot');
 
+// ── Phase 3 Engines ──
+const { initPush, savePushSubscription, sendPushNotification, broadcastPush, PUSH_TEMPLATES, getManifest, getServiceWorkerScript, VAPID_PUBLIC } = require('./pwa-engine');
+const { SUPPORTED_CHAINS, generateSIWEMessage, verifySIWESignature, verifyPersonalSign, linkWallet, prepareEscrowDeposit, prepareTokenEscrowDeposit, prepareIPRegistrationTx, generateCryptoSigningMessage, verifyCryptoSignature, getWalletClientScript } = require('./wallet-engine');
+const { SUPPORTED_LANGUAGES, getTranslation, getLanguageBundle, detectLanguage } = require('./i18n-engine');
+const { COMMISSION_RATES, SERVICE_TYPES, SPECIALIZATIONS, SEED_PROFESSIONALS, registerProfessional, createServiceRequest, submitQuote, acceptQuote, addDeliverable, completeRequest, addMessage: addServiceMessage, reviewProfessional, searchProfessionals } = require('./legal-marketplace-engine');
+const { WHITELABEL_TIERS, DEFAULT_BRAND, createTenant, updateBrand, generateCustomCSS, generateBrandedEmail, getPDFBranding, resolveTenant, tenantHasFeature, checkTenantLimits } = require('./whitelabel-engine');
+const { AUDIT_CATEGORIES, SEVERITY, AUDIT_ACTIONS, COMPLIANCE_CHECKLIST, RETENTION_POLICIES, createAuditLog, hashAuditLog, generateSecurityPolicy, createIncident, updateIncident, createDSAR, collectUserData, calculateComplianceScore, getSecurityHeaders } = require('./soc2-engine');
+
 const app = express();
 const PORT = process.env.PORT || 3500;
 const PLATFORM = process.env.PLATFORM_NAME || 'AgreeMint';
@@ -50,7 +58,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ---- Data Store ----
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {}, disputes: {}, registeredUsers: {}, templates: {}, purchases: [], apiKeys: {} };
+let db = { agreements: {}, sessions: {}, users: {}, audit: [], pledges: {}, kywUsers: {}, disputes: {}, registeredUsers: {}, templates: {}, purchases: [], apiKeys: {}, pushSubscriptions: {}, wallets: {}, walletNonces: {}, legalProfessionals: {}, serviceRequests: {}, whitelabelTenants: {}, auditLogs: [], incidents: {}, dsarRequests: {} };
 
 function loadDB() {
   try {
@@ -68,6 +76,16 @@ function loadDB() {
       if (!db.templates) db.templates = {};
       if (!db.purchases) db.purchases = [];
       if (!db.apiKeys) db.apiKeys = {};
+      // Phase 3 collections
+      if (!db.pushSubscriptions) db.pushSubscriptions = {};
+      if (!db.wallets) db.wallets = {};
+      if (!db.walletNonces) db.walletNonces = {};
+      if (!db.legalProfessionals) db.legalProfessionals = {};
+      if (!db.serviceRequests) db.serviceRequests = {};
+      if (!db.whitelabelTenants) db.whitelabelTenants = {};
+      if (!db.auditLogs) db.auditLogs = [];
+      if (!db.incidents) db.incidents = {};
+      if (!db.dsarRequests) db.dsarRequests = {};
     }
   } catch (e) {
     console.error('DB load error:', e.message);
@@ -81,6 +99,13 @@ function seedTemplates() {
   });
 }
 
+// Seed legal professionals
+function seedLegalProfessionals() {
+  SEED_PROFESSIONALS.forEach(p => {
+    if (!db.legalProfessionals[p.id]) db.legalProfessionals[p.id] = p;
+  });
+}
+
 function saveDB() {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
@@ -91,7 +116,34 @@ function saveDB() {
 
 loadDB();
 seedTemplates();
+seedLegalProfessionals();
 saveDB();
+
+// ── SOC 2 Security Headers ──
+app.use((req, res, next) => {
+  const secHeaders = getSecurityHeaders();
+  Object.entries(secHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  next();
+});
+
+// ── Audit Logging Middleware ──
+let lastAuditHash = 'genesis';
+function logAudit(category, action, details = {}) {
+  const log = createAuditLog(category, action, details);
+  hashAuditLog(log, lastAuditHash);
+  lastAuditHash = log.hash;
+  db.auditLogs.push(log);
+  // Keep last 10000 logs in memory (older ones would be archived)
+  if (db.auditLogs.length > 10000) db.auditLogs = db.auditLogs.slice(-10000);
+  return log;
+}
+
+// ── White-Label Tenant Resolution Middleware ──
+app.use((req, res, next) => {
+  req.tenant = resolveTenant(Object.values(db.whitelabelTenants), req);
+  req.brand = req.tenant ? req.tenant.brand : DEFAULT_BRAND;
+  next();
+});
 
 // ---- Auth Middleware ----
 // Legacy admin users (tez/kingpin) still work for backward compat
@@ -2140,6 +2192,597 @@ app.get('/api/admin/users', requireAuth, (req, res) => {
 });
 
 // ============================================================
+//   PWA — Progressive Web App
+// ============================================================
+
+// ---- PWA Manifest ----
+app.get('/manifest.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.json(getManifest(req.brand));
+});
+
+// ---- Service Worker ----
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.send(getServiceWorkerScript());
+});
+
+// ---- VAPID Public Key ----
+app.get('/api/pwa/vapid-key', (req, res) => {
+  res.json({ key: VAPID_PUBLIC });
+});
+
+// ---- Subscribe to Push ----
+app.post('/api/pwa/subscribe', requireAuth, (req, res) => {
+  const { subscription } = req.body;
+  if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Push subscription required' });
+  
+  const userId = req.user.userId || req.user.name;
+  savePushSubscription(db, userId, subscription);
+  saveDB();
+  
+  logAudit(AUDIT_CATEGORIES.DATA, 'push_subscribed', { userId, description: 'Push notification subscription registered' });
+  res.json({ ok: true, message: 'Push notifications enabled' });
+});
+
+// ---- Unsubscribe from Push ----
+app.post('/api/pwa/unsubscribe', requireAuth, (req, res) => {
+  const userId = req.user.userId || req.user.name;
+  delete db.pushSubscriptions[userId];
+  saveDB();
+  res.json({ ok: true, message: 'Push notifications disabled' });
+});
+
+// ---- Send Test Push ----
+app.post('/api/pwa/test-push', requireAuth, (req, res) => {
+  const userId = req.user.userId || req.user.name;
+  const sub = db.pushSubscriptions[userId];
+  if (!sub) return res.status(400).json({ error: 'No push subscription found. Enable notifications first.' });
+  
+  sendPushNotification(sub, {
+    title: 'AgreeMint Test',
+    body: 'Push notifications are working! 🎉',
+    icon: '/img/icon-192.png',
+    data: { url: '/' }
+  });
+  
+  res.json({ ok: true, message: 'Test push sent' });
+});
+
+// ============================================================
+//   WALLET — MetaMask / WalletConnect Integration
+// ============================================================
+
+// ---- Get Supported Chains ----
+app.get('/api/wallet/chains', (req, res) => {
+  res.json({ chains: SUPPORTED_CHAINS });
+});
+
+// ---- Get Wallet Client Script ----
+app.get('/api/wallet/client.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(getWalletClientScript());
+});
+
+// ---- Generate SIWE Nonce ----
+app.post('/api/wallet/siwe/nonce', (req, res) => {
+  const { address, chainId } = req.body;
+  if (!address) return res.status(400).json({ error: 'Wallet address required' });
+  
+  const domain = req.headers.host || 'agreemint.io';
+  const uri = `${req.protocol}://${domain}`;
+  const nonce = require('crypto').randomBytes(16).toString('hex');
+  const result = generateSIWEMessage(address, chainId, nonce, domain, uri);
+  const messageText = result.message || result;
+  
+  // Store nonce for verification
+  db.walletNonces[address.toLowerCase()] = { message: messageText, nonce, createdAt: new Date().toISOString(), expiresAt: result.expiresAt || new Date(Date.now() + 600000).toISOString() };
+  saveDB();
+  
+  res.json({ message: messageText, nonce });
+});
+
+// ---- Verify SIWE Signature ----
+app.post('/api/wallet/siwe/verify', (req, res) => {
+  const { address, signature } = req.body;
+  if (!address || !signature) return res.status(400).json({ error: 'Address and signature required' });
+  
+  const nonceRecord = db.walletNonces[address.toLowerCase()];
+  if (!nonceRecord) return res.status(400).json({ error: 'No pending SIWE challenge. Request a nonce first.' });
+  if (new Date(nonceRecord.expiresAt) < new Date()) return res.status(400).json({ error: 'SIWE challenge expired. Request a new nonce.' });
+  
+  const verified = verifySIWESignature(nonceRecord.message, signature, address);
+  if (!verified) return res.status(401).json({ error: 'Invalid signature' });
+  
+  // Clean up nonce
+  delete db.walletNonces[address.toLowerCase()];
+  
+  // Create session for wallet user
+  const token = uuidv4();
+  authTokens[token] = { name: `${address.substring(0, 6)}...${address.slice(-4)}`, role: 'user', walletAddress: address, tier: 'free' };
+  
+  logAudit(AUDIT_CATEGORIES.AUTH, AUDIT_ACTIONS.LOGIN_SUCCESS, { userId: address, description: 'SIWE wallet login' });
+  saveDB();
+  
+  res.json({ ok: true, token, address, method: 'siwe' });
+});
+
+// ---- Link Wallet to Account ----
+app.post('/api/wallet/link', requireAuth, (req, res) => {
+  const { address, signature, message, chainId, provider } = req.body;
+  if (!address || !signature || !message) return res.status(400).json({ error: 'Address, signature, and message required' });
+  
+  try {
+    const wallet = linkWallet(req.user.userId || req.user.name, { address, signature, message, chainId, provider });
+    db.wallets[address.toLowerCase()] = wallet;
+    saveDB();
+    
+    logAudit(AUDIT_CATEGORIES.DATA, 'wallet_linked', { userId: req.user.userId, description: `Wallet ${address} linked`, metadata: { address } });
+    res.json({ ok: true, wallet });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Get Linked Wallets ----
+app.get('/api/wallet/linked', requireAuth, (req, res) => {
+  const userId = req.user.userId || req.user.name;
+  const wallets = Object.values(db.wallets).filter(w => w.userId === userId);
+  res.json({ wallets });
+});
+
+// ---- Prepare Escrow Deposit Tx ----
+app.post('/api/wallet/escrow/prepare', requireAuth, (req, res) => {
+  const { escrowId, amount, currency, contractAddress } = req.body;
+  if (!escrowId || !amount) return res.status(400).json({ error: 'Escrow ID and amount required' });
+  
+  try {
+    const cur = currency || 'ETH';
+    const tx = prepareEscrowDeposit(
+      contractAddress || process.env.ESCROW_ADDRESS || '0x0000000000000000000000000000000000000000',
+      escrowId, amount, cur, ESCROW_ABI
+    );
+    res.json({ ok: true, ...tx });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Prepare IP Registration Tx ----
+app.post('/api/wallet/ip/prepare', requireAuth, (req, res) => {
+  const { agreementId, metadataUri } = req.body;
+  if (!agreementId) return res.status(400).json({ error: 'Agreement ID required' });
+  
+  const agreement = db.agreements[agreementId];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  
+  try {
+    const tx = prepareIPRegistrationTx(metadataUri || `https://agreemint.io/api/ip/${agreementId}/metadata`);
+    res.json({ ok: true, ...tx });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Sign Agreement with Crypto Wallet ----
+app.post('/api/wallet/sign-agreement', requireAuth, (req, res) => {
+  const { agreementId, address, signature } = req.body;
+  if (!agreementId || !address || !signature) return res.status(400).json({ error: 'Agreement ID, address, and signature required' });
+  
+  const agreement = db.agreements[agreementId];
+  if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+  
+  const message = generateCryptoSigningMessage(agreementId, agreement.hash || '', address);
+  const verified = verifyCryptoSignature(message, signature, address);
+  if (!verified) return res.status(401).json({ error: 'Invalid cryptographic signature' });
+  
+  // Add crypto signature to agreement
+  agreement.signatures.push({
+    name: `${address.substring(0, 6)}...${address.slice(-4)}`,
+    email: address,
+    signedAt: new Date().toISOString(),
+    method: 'crypto_wallet',
+    walletAddress: address,
+    cryptoSignature: signature
+  });
+  
+  agreement.status = agreement.signatures.length >= (agreement.parties?.length || 2) ? 'completed' : 'partially_signed';
+  saveDB();
+  
+  logAudit(AUDIT_CATEGORIES.AGREEMENT, AUDIT_ACTIONS.AGREEMENT_SIGNED, { userId: address, resourceId: agreementId, description: 'Crypto wallet signature' });
+  res.json({ ok: true, agreement });
+});
+
+// ============================================================
+//   I18N — Multi-Language Support
+// ============================================================
+
+// ---- Get Supported Languages ----
+app.get('/api/i18n/languages', (req, res) => {
+  res.json({ languages: SUPPORTED_LANGUAGES, detected: detectLanguage(req.headers['accept-language']) });
+});
+
+// ---- Get Language Bundle ----
+app.get('/api/i18n/:lang', (req, res) => {
+  if (!SUPPORTED_LANGUAGES[req.params.lang]) {
+    return res.status(400).json({ error: `Unsupported language: ${req.params.lang}. Supported: ${Object.keys(SUPPORTED_LANGUAGES).join(', ')}` });
+  }
+  try {
+    const bundle = getLanguageBundle(req.params.lang);
+    res.json(bundle);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Translate Key (API) ----
+app.post('/api/i18n/translate', (req, res) => {
+  const { lang, keys } = req.body;
+  if (!keys || !Array.isArray(keys)) return res.status(400).json({ error: 'Array of keys required' });
+  
+  const t = getTranslation(lang || detectLanguage(req.headers['accept-language']));
+  const translations = {};
+  keys.forEach(k => { translations[k] = t(k); });
+  
+  res.json({ lang: lang || 'en', translations });
+});
+
+// ============================================================
+//   LEGAL PROFESSIONAL MARKETPLACE
+// ============================================================
+
+// ---- Browse Legal Professionals ----
+app.get('/api/legal/professionals', (req, res) => {
+  const filters = {
+    specialization: req.query.specialization,
+    jurisdiction: req.query.jurisdiction,
+    language: req.query.language,
+    minRating: req.query.minRating ? parseFloat(req.query.minRating) : undefined,
+    maxRate: req.query.maxRate ? parseInt(req.query.maxRate) : undefined,
+    availability: req.query.availability,
+    search: req.query.search,
+    sort: req.query.sort
+  };
+  
+  const professionals = searchProfessionals(Object.values(db.legalProfessionals), filters);
+  res.json({ professionals, total: professionals.length, filters: { specializations: SPECIALIZATIONS, serviceTypes: SERVICE_TYPES } });
+});
+
+// ---- Get Professional Profile ----
+app.get('/api/legal/professionals/:id', (req, res) => {
+  const pro = db.legalProfessionals[req.params.id];
+  if (!pro) return res.status(404).json({ error: 'Professional not found' });
+  res.json({ professional: pro, serviceTypes: SERVICE_TYPES, commissionRates: COMMISSION_RATES });
+});
+
+// ---- Register as Professional ----
+app.post('/api/legal/professionals/register', requireAuth, (req, res) => {
+  try {
+    const pro = registerProfessional(req.body);
+    db.legalProfessionals[pro.id] = pro;
+    saveDB();
+    
+    logAudit(AUDIT_CATEGORIES.DATA, 'professional_registered', { userId: req.user.userId, description: `Legal professional registered: ${pro.name}`, resourceId: pro.id });
+    res.json({ ok: true, professional: pro, message: 'Registration submitted. Verification pending.' });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Verify Professional (Admin) ----
+app.post('/api/legal/professionals/:id/verify', requireAuth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  
+  const pro = db.legalProfessionals[req.params.id];
+  if (!pro) return res.status(404).json({ error: 'Professional not found' });
+  
+  pro.verified = true;
+  pro.verifiedAt = new Date().toISOString();
+  pro.availability = 'available';
+  saveDB();
+  
+  logAudit(AUDIT_CATEGORIES.ADMIN, 'professional_verified', { userId: req.user.userId, resourceId: pro.id, description: `Verified: ${pro.name}` });
+  res.json({ ok: true, professional: pro });
+});
+
+// ---- Request Service ----
+app.post('/api/legal/requests', requireAuth, (req, res) => {
+  const userId = req.user.userId || req.user.name;
+  const { professionalId } = req.body;
+  
+  if (!professionalId) return res.status(400).json({ error: 'Professional ID required' });
+  const pro = db.legalProfessionals[professionalId];
+  if (!pro) return res.status(404).json({ error: 'Professional not found' });
+  if (!pro.verified) return res.status(400).json({ error: 'Professional not yet verified' });
+  
+  try {
+    const request = createServiceRequest(userId, professionalId, req.body);
+    db.serviceRequests[request.id] = request;
+    saveDB();
+    
+    logAudit(AUDIT_CATEGORIES.DATA, 'service_requested', { userId, resourceId: request.id, description: `Service request: ${request.serviceType}` });
+    res.json({ ok: true, request });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- List My Service Requests ----
+app.get('/api/legal/requests', requireAuth, (req, res) => {
+  const userId = req.user.userId || req.user.name;
+  const requests = Object.values(db.serviceRequests).filter(r => r.userId === userId || r.professionalId === userId);
+  res.json({ requests });
+});
+
+// ---- Get Service Request Detail ----
+app.get('/api/legal/requests/:id', requireAuth, (req, res) => {
+  const request = db.serviceRequests[req.params.id];
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  
+  const pro = db.legalProfessionals[request.professionalId];
+  res.json({ request, professional: pro });
+});
+
+// ---- Submit Quote (Professional) ----
+app.post('/api/legal/requests/:id/quote', requireAuth, (req, res) => {
+  const request = db.serviceRequests[req.params.id];
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  
+  try {
+    submitQuote(request, req.body);
+    saveDB();
+    res.json({ ok: true, request });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Accept Quote (Client) ----
+app.post('/api/legal/requests/:id/accept', requireAuth, (req, res) => {
+  const request = db.serviceRequests[req.params.id];
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  
+  try {
+    acceptQuote(request);
+    saveDB();
+    res.json({ ok: true, request });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Add Deliverable (Professional) ----
+app.post('/api/legal/requests/:id/deliverables', requireAuth, (req, res) => {
+  const request = db.serviceRequests[req.params.id];
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  
+  try {
+    const deliverable = addDeliverable(request, req.body);
+    saveDB();
+    res.json({ ok: true, deliverable, request });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Complete Request ----
+app.post('/api/legal/requests/:id/complete', requireAuth, (req, res) => {
+  const request = db.serviceRequests[req.params.id];
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  
+  completeRequest(request);
+  
+  // Update professional stats
+  const pro = db.legalProfessionals[request.professionalId];
+  if (pro) {
+    pro.completedJobs = (pro.completedJobs || 0) + 1;
+    if (request.quote) {
+      if (!pro.earnings) pro.earnings = { total: 0, pending: 0, paid: 0 };
+      pro.earnings.total += request.quote.professionalEarns;
+    }
+  }
+  saveDB();
+  
+  res.json({ ok: true, request });
+});
+
+// ---- Message on Request ----
+app.post('/api/legal/requests/:id/messages', requireAuth, (req, res) => {
+  const request = db.serviceRequests[req.params.id];
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  
+  addServiceMessage(request, req.user.name || req.user.email, req.body.message);
+  saveDB();
+  res.json({ ok: true, messages: request.messages });
+});
+
+// ---- Review Professional ----
+app.post('/api/legal/professionals/:id/review', requireAuth, (req, res) => {
+  const pro = db.legalProfessionals[req.params.id];
+  if (!pro) return res.status(404).json({ error: 'Professional not found' });
+  
+  try {
+    const review = reviewProfessional(pro, req.body);
+    saveDB();
+    res.json({ ok: true, review, newRating: pro.rating });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Service Types & Specializations ----
+app.get('/api/legal/service-types', (req, res) => {
+  res.json({ serviceTypes: SERVICE_TYPES, specializations: SPECIALIZATIONS, commissionRates: COMMISSION_RATES });
+});
+
+// ============================================================
+//   WHITE-LABEL PROGRAM
+// ============================================================
+
+// ---- Get White-Label Tiers ----
+app.get('/api/whitelabel/tiers', (req, res) => {
+  res.json({ tiers: WHITELABEL_TIERS });
+});
+
+// ---- Create Tenant ----
+app.post('/api/whitelabel/tenants', requireAuth, requireTier('enterprise'), (req, res) => {
+  try {
+    const tenant = createTenant(req.body);
+    db.whitelabelTenants[tenant.id] = tenant;
+    saveDB();
+    
+    logAudit(AUDIT_CATEGORIES.ADMIN, 'tenant_created', { userId: req.user.userId, resourceId: tenant.id, description: `White-label tenant: ${tenant.companyName}` });
+    res.json({ ok: true, tenant });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Get My Tenant ----
+app.get('/api/whitelabel/tenant', requireAuth, (req, res) => {
+  const tenant = Object.values(db.whitelabelTenants).find(t => t.adminEmail === (req.user.email || req.user.name));
+  if (!tenant) return res.status(404).json({ error: 'No white-label tenant found for this account' });
+  res.json({ tenant });
+});
+
+// ---- Update Branding ----
+app.put('/api/whitelabel/tenant/brand', requireAuth, (req, res) => {
+  const tenant = Object.values(db.whitelabelTenants).find(t => t.adminEmail === (req.user.email || req.user.name));
+  if (!tenant) return res.status(404).json({ error: 'No white-label tenant found' });
+  
+  updateBrand(tenant, req.body);
+  saveDB();
+  
+  res.json({ ok: true, brand: tenant.brand });
+});
+
+// ---- Get Custom CSS ----
+app.get('/api/whitelabel/css', (req, res) => {
+  res.setHeader('Content-Type', 'text/css');
+  res.send(generateCustomCSS(req.brand));
+});
+
+// ---- Get Tenant Branding ----
+app.get('/api/whitelabel/brand', (req, res) => {
+  res.json({ brand: req.brand, tenant: req.tenant ? { id: req.tenant.id, companyName: req.tenant.companyName, tier: req.tenant.tier } : null });
+});
+
+// ---- Check Tenant Limits ----
+app.get('/api/whitelabel/limits', requireAuth, (req, res) => {
+  const tenant = Object.values(db.whitelabelTenants).find(t => t.adminEmail === (req.user.email || req.user.name));
+  if (!tenant) return res.status(404).json({ error: 'No white-label tenant found' });
+  
+  res.json({ limits: checkTenantLimits(tenant) });
+});
+
+// ---- List All Tenants (Admin) ----
+app.get('/api/admin/whitelabel/tenants', requireAuth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  
+  const tenants = Object.values(db.whitelabelTenants).map(t => ({
+    id: t.id, companyName: t.companyName, subdomain: t.subdomain, tier: t.tier, status: t.status, createdAt: t.createdAt
+  }));
+  res.json({ tenants, total: tenants.length });
+});
+
+// ============================================================
+//   SOC 2 COMPLIANCE
+// ============================================================
+
+// ---- Compliance Dashboard ----
+app.get('/api/compliance/dashboard', requireAuth, requireTier('enterprise'), (req, res) => {
+  const score = calculateComplianceScore();
+  res.json({
+    complianceScore: score,
+    checklist: COMPLIANCE_CHECKLIST,
+    retentionPolicies: RETENTION_POLICIES,
+    auditLogCount: db.auditLogs.length,
+    openIncidents: Object.values(db.incidents).filter(i => i.status !== 'closed').length,
+    pendingDSARs: Object.values(db.dsarRequests).filter(d => d.status === 'pending').length
+  });
+});
+
+// ---- Get Audit Logs ----
+app.get('/api/compliance/audit-logs', requireAuth, requireTier('enterprise'), (req, res) => {
+  const { category, severity, userId, limit: lim } = req.query;
+  let logs = [...db.auditLogs];
+  
+  if (category) logs = logs.filter(l => l.category === category);
+  if (severity) logs = logs.filter(l => l.severity === severity);
+  if (userId) logs = logs.filter(l => l.userId === userId);
+  
+  logs = logs.slice(-(parseInt(lim) || 100));
+  res.json({ logs, total: logs.length, categories: AUDIT_CATEGORIES, severities: SEVERITY });
+});
+
+// ---- Security Policy ----
+app.get('/api/compliance/security-policy', (req, res) => {
+  res.json({ policy: generateSecurityPolicy() });
+});
+
+// ---- Create Incident ----
+app.post('/api/compliance/incidents', requireAuth, requireTier('enterprise'), (req, res) => {
+  try {
+    const incident = createIncident(req.body);
+    db.incidents[incident.id] = incident;
+    saveDB();
+    
+    logAudit(AUDIT_CATEGORIES.SECURITY, 'incident_created', { userId: req.user.userId, severity: incident.severity, resourceId: incident.id, description: incident.title });
+    res.json({ ok: true, incident });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---- Update Incident ----
+app.put('/api/compliance/incidents/:id', requireAuth, requireTier('enterprise'), (req, res) => {
+  const incident = db.incidents[req.params.id];
+  if (!incident) return res.status(404).json({ error: 'Incident not found' });
+  
+  updateIncident(incident, { ...req.body, by: req.user.name || req.user.email });
+  saveDB();
+  
+  res.json({ ok: true, incident });
+});
+
+// ---- List Incidents ----
+app.get('/api/compliance/incidents', requireAuth, requireTier('enterprise'), (req, res) => {
+  const incidents = Object.values(db.incidents);
+  res.json({ incidents, open: incidents.filter(i => i.status !== 'closed').length });
+});
+
+// ---- Data Subject Access Request ----
+app.post('/api/compliance/dsar', requireAuth, (req, res) => {
+  const { type } = req.body;
+  if (!['access', 'export', 'deletion', 'rectification'].includes(type)) {
+    return res.status(400).json({ error: 'Type must be: access, export, deletion, or rectification' });
+  }
+  
+  const dsar = createDSAR(req.user.userId || req.user.name, type);
+  db.dsarRequests[dsar.id] = dsar;
+  saveDB();
+  
+  logAudit(AUDIT_CATEGORIES.PRIVACY, AUDIT_ACTIONS.DATA_EXPORT_REQUESTED, { userId: req.user.userId, resourceId: dsar.id, description: `DSAR: ${type}` });
+  res.json({ ok: true, dsar, message: `Your ${type} request has been submitted. We will respond within 30 days.` });
+});
+
+// ---- Export My Data ----
+app.get('/api/compliance/my-data', requireAuth, (req, res) => {
+  const userId = req.user.userId || req.user.name;
+  const data = collectUserData(userId, db);
+  
+  logAudit(AUDIT_CATEGORIES.PRIVACY, AUDIT_ACTIONS.DATA_EXPORT_REQUESTED, { userId, description: 'User data export' });
+  res.json({ data, exportedAt: new Date().toISOString() });
+});
+
+// ---- List DSARs (Admin) ----
+app.get('/api/admin/compliance/dsars', requireAuth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  res.json({ dsars: Object.values(db.dsarRequests) });
+});
+
+// ============================================================
 //   HEALTH
 // ============================================================
 
@@ -2161,6 +2804,13 @@ app.get('/api/health', async (req, res) => {
     storyProtocol: { configured: !!process.env.STORY_RPC_URL, rpc: process.env.STORY_RPC_URL || 'https://odyssey.storyrpc.io' },
     stripe: { configured: !!process.env.STRIPE_SECRET_KEY },
     discord: { configured: !!process.env.DISCORD_BOT_TOKEN },
+    // Phase 3 features
+    pwa: { enabled: true, vapidConfigured: !!VAPID_PUBLIC, pushSubscriptions: Object.keys(db.pushSubscriptions).length },
+    wallet: { enabled: true, supportedChains: Object.keys(SUPPORTED_CHAINS).length, linkedWallets: Object.keys(db.wallets).length },
+    i18n: { enabled: true, languages: Object.keys(SUPPORTED_LANGUAGES).length },
+    legalMarketplace: { enabled: true, professionals: Object.keys(db.legalProfessionals).length, verifiedPros: Object.values(db.legalProfessionals).filter(p => p.verified).length, serviceRequests: Object.keys(db.serviceRequests).length },
+    whiteLabel: { enabled: true, tenants: Object.keys(db.whitelabelTenants).length },
+    soc2: { enabled: true, complianceScore: calculateComplianceScore().score, auditLogs: db.auditLogs.length, openIncidents: Object.values(db.incidents).filter(i => i.status !== 'closed').length },
     uptime: process.uptime()
   });
 });
@@ -2211,6 +2861,7 @@ app.get('*', (req, res) => {
 // Initialize services
 initTransport();
 initStripe();
+initPush();
 registerCommands().catch(() => {});
 
 app.listen(PORT, () => {
@@ -2223,7 +2874,13 @@ app.listen(PORT, () => {
   console.log(`  Users:       ${Object.keys(db.registeredUsers).length}`);
   console.log(`  Templates:   ${Object.keys(db.templates).length}`);
   console.log(`  Disputes:    ${Object.keys(db.disputes || {}).length}`);
+  console.log(`  Legal Pros:  ${Object.values(db.legalProfessionals).filter(p => p.verified).length} verified`);
+  console.log(`  WL Tenants:  ${Object.keys(db.whitelabelTenants).length}`);
+  console.log(`  SOC 2:       ${calculateComplianceScore().score}% compliant`);
   console.log(`  Notify:      ${process.env.NOTIFY_ENABLED === 'true' ? 'ENABLED' : 'disabled (set NOTIFY_ENABLED=true)'}`);
+  console.log(`  PWA:         ENABLED (push: ${Object.keys(db.pushSubscriptions).length} subs)`);
+  console.log(`  Wallet:      ENABLED (${Object.keys(db.wallets).length} linked)`);
+  console.log(`  i18n:        ${Object.keys(SUPPORTED_LANGUAGES).length} languages`);
   console.log(`  Story Proto: ${process.env.STORY_RPC_URL ? 'Configured' : 'Default (Odyssey)'}`);
   console.log(`  Stripe:      ${process.env.STRIPE_SECRET_KEY ? 'ENABLED' : 'disabled (set STRIPE_SECRET_KEY)'}`);
   console.log(`  Discord:     ${process.env.DISCORD_BOT_TOKEN ? 'ENABLED' : 'disabled (set DISCORD_BOT_TOKEN)'}`);

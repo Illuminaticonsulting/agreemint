@@ -18,7 +18,8 @@
     "nodemailer": "^8.0.1",
     "openai": "^4.28.0",
     "pdfkit": "^0.13.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "web-push": "^3.6.7"
   },
   "keywords": [
     "ai",
